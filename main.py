@@ -2,8 +2,7 @@ import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from mydataset import MyDatset
-from res_senet import *
-from spectralnet import *
+from networks import *
 from tqdm import tqdm
 from loss import *
 
