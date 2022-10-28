@@ -35,12 +35,12 @@ def train(config):
 	data_path = config["dataset"]["path"]
 	data_num = config["dataset"]["num"]
 	batch_size = config["dataset"]["batch_size"]
-	data = MyDatset(data_path=data_path)
+	data = MyDatset(data_path=data_path,data_num=data_num)
 	train_loader = DataLoader(data, batch_size=batch_size, shuffle=False)
 
 	input_dims, hid_dims, out_dim = config["se_model"]["input_dims"],config["se_model"]["hid_dims"],config["se_model"]["output_dims"]
 
-	senet = mlp(input_dims, hid_dims, out_dim)
+	senet = SENet(input_dims, hid_dims, out_dim)
 	train_se(senet,train_loader,100000)
 
 	model = SpectralNet(config)
