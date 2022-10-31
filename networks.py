@@ -14,9 +14,9 @@ class MLP(nn.Module):
 		self.layer3 = nn.Linear(self.hid_dims[1],self.output_dims)
 
 	def forward(self,x):
-		out1 = nn.ReLU(self.layer1(x))
-		out2 = nn.ReLU(self.layer2(out1))
-		out3 = nn.ReLU(self.layer2(out2))
+		out1 = F.relu(self.layer1(x))
+		out2 = F.relu(self.layer2(out1))
+		out3 = F.relu(self.layer2(out2))
 
 		out = out3 + out1
 
@@ -94,7 +94,7 @@ class SpectralNet(nn.Module):
 
         self.A = torch.rand(k, k)
         self.A.requires_grad = False
-        self.head = nn.Softmax(k)
+        self.head = nn.Softmax()
 
     def forward(self, x, ortho_step=False):
         self.A.requires_grad = False
@@ -120,5 +120,6 @@ class SpectralNet(nn.Module):
             Y_tilde = torch.tanh(self.fc4(x))
             # need to multiply from the right, not from the left
             Y = torch.mm(Y_tilde, self.A)
+            print(Y.shape)
             P = self.head(Y)
             return Y,P
