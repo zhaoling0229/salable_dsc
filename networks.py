@@ -121,6 +121,6 @@ class SpectralNet(nn.Module):
             Y_tilde = torch.tanh(self.fc4(x))
             # need to multiply from the right, not from the left
             Y = torch.mm(Y_tilde, self.A)
-            print(Y.shape)
+            # print(Y.shape)
             P = self.head(self.fc5(Y))
             return Y,P

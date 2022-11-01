@@ -1,6 +1,6 @@
 se_model:
-  inputs_dims: 128
-  hid_dims: 1024
+  input_dims: 128
+  hid_dims: [1024,1024]
   output_dims: 1024
 dataset:
   path: "E:/dataset/feature/CIFAR100-MCR2"
