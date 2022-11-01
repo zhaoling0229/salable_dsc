@@ -91,6 +91,7 @@ class SpectralNet(nn.Module):
         self.fc2 = nn.Linear(n_hidden_1, n_hidden_1)
         self.fc3 = nn.Linear(n_hidden_1, n_hidden_2)
         self.fc4 = nn.Linear(n_hidden_2, k)
+        self.fc5 = nn.Linear(k,k)
 
         self.A = torch.rand(k, k)
         self.A.requires_grad = False
@@ -121,5 +122,5 @@ class SpectralNet(nn.Module):
             # need to multiply from the right, not from the left
             Y = torch.mm(Y_tilde, self.A)
             print(Y.shape)
-            P = self.head(Y)
+            P = self.head(self.fc5(Y))
             return Y,P

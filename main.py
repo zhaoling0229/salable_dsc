@@ -105,13 +105,13 @@ if __name__ == "__main__":
         'to_wandb': False,
         'device': 'cpu'
     }
-    # model = SpectralNet(params)
-    # for epoch in range(10000):
-    #     print("epoch:", epoch)
-    #     pbar = tqdm(train_loader)
-    #     for feature, _ in pbar:
-    #         Y, P = model(feature)
-    #         print(P)
-    config_file = open("E:/PythonProject/scalable_dsc/config/config_init.yaml",'r')
-    config = yaml.load(config_file)
-    print(config)
+    model = SpectralNet(params)
+    for epoch in range(10000):
+        print("epoch:", epoch)
+        pbar = tqdm(train_loader)
+        for feature, _ in pbar:
+            Y, P = model(feature)
+            print(Y)
+    # config_file = open("E:/PythonProject/scalable_dsc/config/config_init.yaml",'r')
+    # config = yaml.load(config_file)
+    # print(config)
