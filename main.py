@@ -1,11 +1,12 @@
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from utils import *
-from networks import *
 from tqdm import tqdm
 from tqdm.contrib import tzip
 import yaml
+from utils import *
+from networks import *
+from label_generate import *
 
 def regularizer(c, lmbd=1.0):
     return lmbd * torch.abs(c).sum() + (1.0 - lmbd) / 2.0 * torch.pow(c, 2).sum()
@@ -49,9 +50,7 @@ def train_se(senet, train_loader,batch_size, epochs):
         
         scheduler.step()
 
-
 def train(config,params):
-
     data_path = config["dataset"]["path"]
     data_num = config["dataset"]["num"]
     batch_size = config["dataset"]["batch_size"]
@@ -72,10 +71,29 @@ def train(config,params):
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer,T_max=100,eta_min=0.0)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    deepcluster = Kmeans(k)
+    criterion = nn.CrossEntropyLoss()
+    
     for epoch in range(10000):
         print("epoch:", epoch)
-        for data_ortho, data_grad in tzip(train_loader_ortho, train_loader_grad):
-            # orthogonalization step
+        # 生成伪标签
+        feature,_ = model(data)
+        clustering_loss = deepcluster.cluster(feature, verbose=args.verbose)
+        train_dataset = cluster_assign(deepcluster.images_lists,
+                                                  data)
+        # uniformly sample per target
+        sampler = UnifLabelSampler(int(args.reassign * len(train_dataset)),
+                                   deepcluster.images_lists)
+        train_dataloader = torch.utils.data.DataLoader(
+            train_dataset,
+            batch_size=batch_size,
+            num_workers=2,
+            sampler=sampler,
+            pin_memory=True,
+        )
+
+        for (data_ortho,_), (data_grad,label) in tzip(train_dataloader, train_dataloader):
+            # QR分解正交
             x, target = data_ortho
             x, target = x.to(device), target.to(device)
             # x = x.view(x.shape[0], input_sz)
@@ -83,7 +101,7 @@ def train(config,params):
             with torch.no_grad():
                 res = model(x, ortho_step=True)
 
-            # gradient step
+            # 梯度计算
             x, target = data_grad
             x, target = x.to(device), target.to(device)
             # x = x.view(x.shape[0], input_sz)
@@ -97,23 +115,16 @@ def train(config,params):
             Y,P = model(x, ortho_step=False)
             Y_dists = (torch.cdist(Y, Y)) ** 2
             loss_sn = (W * Y_dists).mean() * x.shape[0]
+            # CELoss
+            loss_ce = criterion(P,label)
 
-            loss = loss_sn
+            loss = loss_sn + loss_ce
             print("spec loss:",loss.item())
             loss.backward()
         
         scheduler.step()
 
 if __name__ == "__main__":
-    """
-    主函数中把所有逻辑串起来
-    1. 加载数据 
-    2. 实例化model
-    3. 加载配置文件
-    4. 训练
-    5. 评估模型
-    6. 记录结果
-    """
     # config_path = ""
     # config = read_config(config_path)
     # data = np.load("E:/dataset/feature/CIFAR100-MCR2/cifar100_features.npy")
