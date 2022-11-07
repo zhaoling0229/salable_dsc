@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 from torch.utils.data import Dataset
+from torch.utils.data.sampler import Sampler
 
 class MyDataset(Dataset):
     def __init__(self,data_path,data_num = 2000) -> None:

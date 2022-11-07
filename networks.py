@@ -82,10 +82,10 @@ class SpectralNet(nn.Module):
         super(SpectralNet, self).__init__()
         self.params = params
 
-        input_sz = params['input_sz']
+        input_sz = params['input_dims']
         n_hidden_1 = params['n_hidden_1']
         n_hidden_2 = params['n_hidden_2']
-        k = params['k']
+        k = params['num_cluster']
 
         self.fc1 = nn.Linear(input_sz, n_hidden_1)
         self.fc2 = nn.Linear(n_hidden_1, n_hidden_1)
@@ -121,6 +121,6 @@ class SpectralNet(nn.Module):
             Y_tilde = torch.tanh(self.fc4(x))
             # need to multiply from the right, not from the left
             Y = torch.mm(Y_tilde, self.A)
-            # print(Y.shape)
+            
             P = self.head(self.fc5(Y))
             return Y,P
