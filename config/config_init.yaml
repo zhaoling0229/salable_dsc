@@ -2,6 +2,7 @@ se_model:
   input_dims: 128
   hid_dims: [1024,1024]
   output_dims: 1024
+  epochs: 50000
   save_epoch: 5000
   eval_epoch: 10000
 
@@ -10,12 +11,13 @@ spec_model:
   hid_dims: [1024,512]
   output_dims: 512
   epsilon: 1e-7
+  epochs: 10000
   save_epoch: 1000
   eval_epoch: 1000
   lambda: 10
 
 dataset:
-  path: "E:/dataset/feature/CIFAR100-MCR2"
+  path: "/root/scalable_dsc/dataset/CIFAR100-MCR2"
   num: 2000
   num_cluster: 100
 
@@ -24,5 +26,5 @@ params:
   learning_rate: 0.001
   epochs: 10000
 
-device: 'cpu'
+device: 'cuda'
 reassign: 1

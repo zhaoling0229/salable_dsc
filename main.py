@@ -1,3 +1,5 @@
+import os
+import random
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
@@ -62,15 +64,16 @@ def train_se(senet, train_loader,batch_size, epochs):
 def train(config):
     data_path = config["dataset"]["path"]
     data_num = config["dataset"]["num"]
-    batch_size = config["dataset"]["batch_size"]
+    batch_size = config["params"]["batch_size"]
     data = MyDataset(data_path=data_path, data_num=data_num)
     train_loader = DataLoader(data, batch_size=batch_size, shuffle=False)
 
-    input_dims, hid_dims, out_dim = config["se_model"]["input_dims"], config[
-        "se_model"]["hid_dims"], config["se_model"]["output_dims"]
+    input_dims, hid_dims, out_dim,se_epochs = config["se_model"]["input_dims"], config[
+        "se_model"]["hid_dims"], config["se_model"]["output_dims"], config['se_model']['epochs']
 
-    senet = SENet(input_dims, hid_dims, out_dim)
-    senet = train_se(senet, train_loader, 100000)
+    device = config['device']
+    senet = SENet(input_dims, hid_dims, out_dim).to(device)
+    senet = train_se(senet, train_loader,batch_size, se_epochs)
 
     train_loader_ortho = torch.utils.data.DataLoader(
         data, batch_size=batch_size, shuffle=True)
@@ -78,16 +81,16 @@ def train(config):
     num_cluster = config['spec_model']['num_cluster']
     params = {'input_dims':config['spec_model']['input_dims'],'num_cluster':num_cluster,'n_hidden_1':config['spec_model']['hid_dims'][0],
         'n_hidden_1':config['spec_model']['hid_dims'][1],'epsilon':config['spec_model']['epsilon'],}
-    model = SpectralNet(params)
+    model = SpectralNet(params).to(device)
     learning_rate = config['params']['lr']
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer,T_max=100,eta_min=0.0)
-    device = config['device']
     deepcluster = Kmeans(num_cluster)
     criterion = nn.CrossEntropyLoss()
     
+    epochs = config['spec_model']['epochs']
     print("strat training spectralnet!")
-    for epoch in range(10000):
+    for epoch in range(epochs):
         print("epoch:", epoch)
         # 生成伪标签
         feature,_ = model(data)
@@ -140,8 +143,20 @@ def train(config):
     torch.save(senet.state_dict(),'spec_model/spec_model.pt')
     print("finish training spectralnet!")
 
+def same_seeds(seed):
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    # os.environ['PYTHONHASHSEED'] = str(1)
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+
 if __name__ == "__main__":
-    config_file = open("E:/PythonProject/scalable_dsc/config/config_init.yaml",'r')
-    config = yaml.load(config_file)
+    config_file = open("./config/config_init.yaml",'r')
+    config = yaml.load(config_file,Loader=yaml.FullLoader)
+    same_seeds(1)
     train(config)
 
