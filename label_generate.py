@@ -12,7 +12,7 @@ class ReassignedDataset(data.Dataset):
         self.pseudolabels = torch.Tensor(pseudolabels)
 
     def __getitem__(self, index):
-        data = torch.self.data[self.data_indexes[index]]
+        data = self.data[self.data_indexes[index]]
         plabel = self.pseudolabels[index]
         return data, plabel
 

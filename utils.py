@@ -10,12 +10,12 @@ class MyDataset(Dataset):
         self.data_num= data_num
         data = np.load(self.data_path + "/cifar100_features.npy")
         sampled_idx = np.random.choice(data.shape[0], self.data_num, replace=False)
-        self.data = data[sampled_idx]
+        self.data = torch.from_numpy(data[sampled_idx])
         labels = np.load(self.data_path + "/cifar100_labels.npy")
         self.labels = torch.Tensor(labels[sampled_idx])
 
     def __getitem__(self, idx):
-        feature = torch.from_numpy(self.data[idx])
+        feature = self.data[idx]
         gt = self.labels[idx]
 
         return feature, gt

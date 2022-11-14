@@ -65,8 +65,8 @@ def train(config):
     data_path = config["dataset"]["path"]
     data_num = config["dataset"]["num"]
     batch_size = config["params"]["batch_size"]
-    data = MyDataset(data_path=data_path, data_num=data_num)
-    train_loader = DataLoader(data, batch_size=batch_size, shuffle=False)
+    train_data = MyDataset(data_path=data_path, data_num=data_num)
+    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=False)
 
     input_dims, hid_dims, out_dim,se_epochs = config["se_model"]["input_dims"], config[
         "se_model"]["hid_dims"], config["se_model"]["output_dims"], config['se_model']['epochs']
@@ -75,8 +75,7 @@ def train(config):
     senet = SENet(input_dims, hid_dims, out_dim).to(device)
     senet = train_se(senet, train_loader,batch_size, se_epochs)
 
-    train_loader_ortho = torch.utils.data.DataLoader(
-        data, batch_size=batch_size, shuffle=True)
+    train_loader_ortho = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     
     num_cluster = config['spec_model']['num_cluster']
     params = {'input_dims':config['spec_model']['input_dims'],'num_cluster':num_cluster,'n_hidden_1':config['spec_model']['hid_dims'][0],
@@ -93,12 +92,12 @@ def train(config):
     for epoch in range(epochs):
         print("epoch:", epoch)
         # 生成伪标签
-        feature,_ = model(data)
+        feature,_ = model(train_data.data)
         clustering_loss = deepcluster.cluster(feature)
-        train_dataset = cluster_assign(deepcluster.images_lists,data)
+        train_dataset = cluster_assign(deepcluster.cluster_lists,train_data.data)
         # uniformly sample per target
         sampler = UnifLabelSampler(int(1 * len(train_dataset)),
-                                   deepcluster.images_lists)
+                                   deepcluster.cluster_lists)
         train_dataloader = torch.utils.data.DataLoader(
             train_dataset,
             batch_size=batch_size,
