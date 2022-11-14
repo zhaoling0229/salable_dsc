@@ -30,7 +30,7 @@ def train_se(senet, train_loader,batch_size, epochs):
             
             # 损失计算
             rec_batch = torch.zeros_like(batch)
-            reg = torch.zeros([1])
+            reg = torch.zeros([1]).cuda()
             for block,_ in train_loader:
                 k_block = senet.key_embedding(block)
                 c = senet.get_coeff(q_batch, k_block)
@@ -42,7 +42,7 @@ def train_se(senet, train_loader,batch_size, epochs):
             reg = reg - regularizer(diag_c, 0.9)
 
             rec_loss = torch.sum(torch.pow(batch - rec_batch, 2))
-            print("reg loss:",reg.item(),"rec loss:",rec_loss.item())
+            # print("reg loss:",reg.item(),"rec loss:",rec_loss.item())
             loss = (0.5 * 200 * rec_loss + reg) / batch_size
 
             # 反向传播
@@ -57,6 +57,7 @@ def train_se(senet, train_loader,batch_size, epochs):
         Loss记录
         模型保存，评估
         """
+    os.makedirs("se_model",exist_ok=True)
     torch.save(senet.state_dict(),'se_model/se_model.pt')
     print("finish training senet!")
     return senet
@@ -79,7 +80,7 @@ def train(config):
     
     num_cluster = config['spec_model']['num_cluster']
     params = {'input_dims':config['spec_model']['input_dims'],'num_cluster':num_cluster,'n_hidden_1':config['spec_model']['hid_dims'][0],
-        'n_hidden_1':config['spec_model']['hid_dims'][1],'epsilon':config['spec_model']['epsilon'],}
+        'n_hidden_2':config['spec_model']['hid_dims'][1],'epsilon':config['spec_model']['epsilon'],}
     model = SpectralNet(params).to(device)
     learning_rate = config['params']['lr']
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
@@ -93,29 +94,29 @@ def train(config):
         print("epoch:", epoch)
         # 生成伪标签
         feature,_ = model(train_data.data)
-        clustering_loss = deepcluster.cluster(feature)
+        clustering_loss = deepcluster.cluster(feature.cpu().data.numpy())
         train_dataset = cluster_assign(deepcluster.cluster_lists,train_data.data)
         # uniformly sample per target
         sampler = UnifLabelSampler(int(1 * len(train_dataset)),
                                    deepcluster.cluster_lists)
-        train_dataloader = torch.utils.data.DataLoader(
+        train_dataloader = DataLoader(
             train_dataset,
             batch_size=batch_size,
-            num_workers=2,
+            # num_workers=2,
             sampler=sampler,
-            pin_memory=True,
+            # pin_memory=True,
         )
 
         for (data_ortho,_), (data_grad,label) in tzip(train_loader_ortho, train_dataloader):
             # QR分解正交
-            x, target = data_ortho
-            x, target = x.to(device), target.to(device)
+            x = data_ortho
+            x.to(device)
 
             with torch.no_grad():
                 res = model(x, ortho_step=True)
 
             # 梯度计算
-            x, target = data_grad
+            x, target = data_grad,label
             x, target = x.to(device), target.to(device)
 
             # compute similarity matrix for the batch
@@ -128,7 +129,8 @@ def train(config):
             Y_dists = (torch.cdist(Y, Y)) ** 2
             loss_sn = (W * Y_dists).mean() * x.shape[0]
             # CELoss
-            loss_ce = criterion(P,label)
+            # loss_ce = torch.zeros([1]).cuda()
+            loss_ce = criterion(P,target.long())
             print("spec loss:",loss_sn.item(),"cross entropy loss:",loss_ce.item())
             loss = loss_sn + loss_ce
             loss.backward()

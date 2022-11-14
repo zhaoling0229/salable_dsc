@@ -71,7 +71,7 @@ class SENet(nn.Module):
 def orthonorm(Q, eps=1e-7):
     m = torch.tensor(Q.shape[0])  # batch size
     outer_prod = torch.mm(Q.T, Q)
-    outer_prod = outer_prod + eps * torch.eye(outer_prod.shape[0])
+    outer_prod = outer_prod + eps * torch.eye(outer_prod.shape[0]).cuda()
 
     L = torch.linalg.cholesky(outer_prod)  # lower triangular
     L_inv = torch.linalg.inv(L)
@@ -93,9 +93,9 @@ class SpectralNet(nn.Module):
         self.fc4 = nn.Linear(n_hidden_2, k)
         self.fc5 = nn.Linear(k,k)
 
-        self.A = torch.rand(k, k)
+        self.A = torch.rand(k, k).cuda()
         self.A.requires_grad = False
-        self.head = nn.Softmax()
+        self.head = nn.Softmax(dim = 1)
 
     def forward(self, x, ortho_step=False):
         self.A.requires_grad = False
