@@ -16,3 +16,6 @@ import pickle
 #             with open(os.path.join(path,file),'rb') as f:
 #                 data = pickle.load(f)
 #             print(file+':'+str(data.shape))
+
+data = np.load('E:/dataset/数据集特征/CIFAR100-MCR2/labels.npy')
+print(type(data[0]))

@@ -2,3 +2,4 @@ se_model/
 spec_model/
 __pycache__/
 .ipynb_checkpoints/
+dataset/
