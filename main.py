@@ -21,12 +21,12 @@ def train_se(senet, train_loader,batch_size, epochs):
     """
     optimizer = optim.Adam(senet.parameters(), lr=0.001)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer,T_max=100,eta_min=0.0)
-    csv_file = "se_model/senet_" + str(datetime.datetime.now())
+    csv_file = "se_model/senet_" + str(datetime.datetime.now())+".csv"
     headers = ['epoch','loss','loss_rec','loss_reg']
     with open(csv_file, 'w+', encoding='utf-8') as f:
         f.write(','.join(map(str, headers)))
-    pbar = tqdm(range(epochs), ncols=120)
     print("strat training senet!")
+    pbar = tqdm(range(epochs), ncols=120)
     for epoch in pbar:
         pbar.set_description(f"Epoch {epoch}")
         n_batch ,rec_loss_item ,reg_loss_item ,loss_item = 0, 0, 0, 0
@@ -64,7 +64,7 @@ def train_se(senet, train_loader,batch_size, epochs):
         pbar.set_postfix(loss="{:3.4f}".format(loss_item / n_batch),
                              rec_loss="{:3.4f}".format(rec_loss_item / n_batch),
                              reg="{:3.4f}".format(reg_loss_item / n_batch))
-        line = [str(epoch),'%.4f%%'%(loss_item / n_batch),'%.4f%%'%(rec_loss_item / n_batch),'%.4f%%'%(reg_loss_item / n_batch)]
+        line = [str(epoch),'%.4f'%(loss_item / n_batch),'%.4f'%(rec_loss_item / n_batch),'%.4f'%(reg_loss_item / n_batch)]
         with open(csv_file, 'a', encoding='utf-8') as f:
             f.write('\n'+','.join(map(str, line)))
         scheduler.step()
@@ -90,7 +90,7 @@ def train(config):
 
     device = config['device']
     senet = SENet(input_dims, hid_dims, out_dim).to(device)
-    senet = train_se(senet, train_loader,batch_size, se_epochs)
+    # senet = train_se(senet, train_loader,batch_size, se_epochs)
 
     train_loader_ortho = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     
@@ -105,13 +105,13 @@ def train(config):
     criterion = nn.CrossEntropyLoss()
     
     epochs = config['spec_model']['epochs']
-    csv_file = "spec_model/spectralnet_" + str(datetime.datetime.now())
+    csv_file = "spec_model/spectralnet_" + str(datetime.datetime.now())+".csv"
     headers = ['epoch','loss','loss_sn','loss_ce']
     with open(csv_file, 'w+', encoding='utf-8') as f:
         f.write(','.join(map(str, headers)))
 
-    pbar = tqdm(range(epochs), ncols=120)
     print("strat training spectralnet!")
+    pbar = tqdm(range(epochs), ncols=120)
     for epoch in pbar:
         pbar.set_description(f"Epoch {epoch}")
         # 生成伪标签
@@ -157,6 +157,7 @@ def train(config):
             loss = (loss_sn + 100 * loss_ce) / batch_size
 
             loss.backward()
+            # optimizer.step()
 
             loss_sn_item += (loss_sn.item() / batch_size)
             loss_ce_item += (loss_ce.item() / batch_size)
@@ -166,11 +167,11 @@ def train(config):
                 loss_sn="{:3.4f}".format(loss_sn_item / n_batch),
                 loss_ce="{:3.4f}".format(loss_ce_item / n_batch))
 
-        line = [str(epoch),'%.4f%%'%(loss_item / n_batch),'%.4f%%'%(loss_sn_item / n_batch),'%.4f%%'%(loss_ce_item / n_batch)]
+        line = [str(epoch),'%.4f'%(loss_item / n_batch),'%.4f'%(loss_sn_item / n_batch),'%.4f'%(loss_ce_item / n_batch)]
         with open(csv_file, 'a', encoding='utf-8') as f:
             f.write('\n'+','.join(map(str, line)))
 
-        scheduler.step()
+        #scheduler.step()
         """
         TODO
         Loss记录

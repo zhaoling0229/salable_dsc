@@ -2,7 +2,7 @@ se_model:
   input_dims: 128
   hid_dims: [1024,1024]
   output_dims: 1024
-  epochs: 10
+  epochs: 3
   save_epoch: 5000
   eval_epoch: 10000
 
@@ -12,7 +12,7 @@ spec_model:
   output_dims: 512
   num_cluster: 100
   epsilon: 0.0000001
-  epochs: 100
+  epochs: 10
   save_epoch: 1000
   eval_epoch: 1000
   lambda: 10
