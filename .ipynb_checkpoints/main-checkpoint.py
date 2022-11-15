@@ -74,7 +74,7 @@ def train(config):
 
     device = config['device']
     senet = SENet(input_dims, hid_dims, out_dim).to(device)
-    senet = train_se(senet, train_loader,batch_size, se_epochs)
+    # senet = train_se(senet, train_loader,batch_size, se_epochs)
 
     train_loader_ortho = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     
@@ -128,9 +128,8 @@ def train(config):
             Y,P = model(x, ortho_step=False)
             Y_dists = (torch.cdist(Y, Y)) ** 2
             loss_sn = (W * Y_dists).mean() * x.shape[0]
-            # CELoss
-            # loss_ce = torch.zeros([1]).cuda()
-            loss_ce = criterion(P,target.long())
+
+            loss_ce = criterion(P,target)
             print("spec loss:",loss_sn.item(),"cross entropy loss:",loss_ce.item())
             loss = loss_sn + loss_ce
             loss.backward()

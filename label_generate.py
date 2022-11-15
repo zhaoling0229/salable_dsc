@@ -9,7 +9,7 @@ class ReassignedDataset(data.Dataset):
     def __init__(self, data_indexes, pseudolabels, dataset, transform=None):
         self.data = dataset
         self.data_indexes = data_indexes
-        self.pseudolabels = torch.Tensor(pseudolabels).cuda()
+        self.pseudolabels = torch.Tensor(pseudolabels).long()
 
     def __getitem__(self, index):
         data = self.data[self.data_indexes[index]]
