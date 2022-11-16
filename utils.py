@@ -13,7 +13,7 @@ class MyDataset(Dataset):
         self.data_num= data_num
         data = np.load(self.data_path + "/cifar100_features.npy")
         sampled_idx = np.random.choice(data.shape[0], self.data_num, replace=False)
-        self.data = torch.from_numpy(p_normalize(data[sampled_idx])).cuda()
+        self.data = p_normalize(torch.from_numpy(data[sampled_idx])).cuda()
         labels = np.load(self.data_path + "/cifar100_labels.npy")
         self.labels = torch.Tensor(labels[sampled_idx])
 

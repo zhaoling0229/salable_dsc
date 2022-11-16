@@ -3,6 +3,9 @@ import torch
 from torch.utils.data import Dataset
 from torch.utils.data.sampler import Sampler
 
+def p_normalize(x, p=2):
+    return x / (torch.norm(x, p=p, dim=1, keepdim=True) + 1e-6)
+
 class MyDataset(Dataset):
     def __init__(self,data_path,data_num = 2000) -> None:
         super(MyDataset,self).__init__()
@@ -10,7 +13,7 @@ class MyDataset(Dataset):
         self.data_num= data_num
         data = np.load(self.data_path + "/cifar100_features.npy")
         sampled_idx = np.random.choice(data.shape[0], self.data_num, replace=False)
-        self.data = torch.from_numpy(data[sampled_idx]).cuda()
+        self.data = p_normalize(torch.from_numpy(data[sampled_idx])).cuda()
         labels = np.load(self.data_path + "/cifar100_labels.npy")
         self.labels = torch.Tensor(labels[sampled_idx])
 

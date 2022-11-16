@@ -105,9 +105,9 @@ class SpectralNet(nn.Module):
                 x = F.relu(self.fc2(x))
                 x = F.relu(self.fc3(x))
                 Y_tilde = torch.tanh(self.fc4(x))
+                self.A.requires_grad = False
 
                 self.A = orthonorm(Y_tilde, eps=self.params['epsilon'])
-                self.A.requires_grad = False
 
                 # for debugging
                 Y = torch.mm(Y_tilde, self.A)

@@ -14,13 +14,14 @@ from label_generate import *
 def regularizer(c, lmbd=1.0):
     return lmbd * torch.abs(c).sum() + (1.0 - lmbd) / 2.0 * torch.pow(c, 2).sum()
 
-def train_se(senet, train_loader,batch_size, epochs):
+def train_se(senet, train_loader,batch_size, epochs,save_epoch):
     """
         训练自表达网络
         使用senet的代码块
     """
     optimizer = optim.Adam(senet.parameters(), lr=0.001)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer,T_max=100,eta_min=0.0)
+    os.makedirs("se_model",exist_ok=True)
     csv_file = "se_model/senet_" + str(datetime.datetime.now())+".csv"
     headers = ['epoch','loss','loss_rec','loss_reg']
     with open(csv_file, 'w+', encoding='utf-8') as f:
@@ -68,13 +69,10 @@ def train_se(senet, train_loader,batch_size, epochs):
         with open(csv_file, 'a', encoding='utf-8') as f:
             f.write('\n'+','.join(map(str, line)))
         scheduler.step()
-        """
-        TODO
-        Loss记录
-        模型保存，评估
-        """
-    os.makedirs("se_model",exist_ok=True)
-    torch.save(senet.state_dict(),'se_model/se_model.pt')
+
+        if (epoch + 1) % save_epoch == 0:
+            torch.save(senet.state_dict(),'se_model/se_model_'+str(epoch)+'.pt')
+
     print("finish training senet!")
     return senet
 
@@ -85,12 +83,12 @@ def train(config):
     train_data = MyDataset(data_path=data_path, data_num=data_num)
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=False)
 
-    input_dims, hid_dims, out_dim,se_epochs = config["se_model"]["input_dims"], config[
-        "se_model"]["hid_dims"], config["se_model"]["output_dims"], config['se_model']['epochs']
+    input_dims, hid_dims, out_dim,se_epochs,se_save_epoch = config["se_model"]["input_dims"], config[
+        "se_model"]["hid_dims"], config["se_model"]["output_dims"], config['se_model']['epochs'], config['se_model']['save_epochs']
 
     device = config['device']
     senet = SENet(input_dims, hid_dims, out_dim).to(device)
-    # senet = train_se(senet, train_loader,batch_size, se_epochs)
+    # senet = train_se(senet, train_loader,batch_size, se_epochs,se_save_epoch)
 
     train_loader_ortho = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     
@@ -171,7 +169,7 @@ def train(config):
         with open(csv_file, 'a', encoding='utf-8') as f:
             f.write('\n'+','.join(map(str, line)))
 
-        #scheduler.step()
+        scheduler.step()
         """
         TODO
         Loss记录
@@ -196,4 +194,3 @@ if __name__ == "__main__":
     config = yaml.load(config_file,Loader=yaml.FullLoader)
     same_seeds(1)
     train(config)
-
