@@ -103,6 +103,8 @@ def train(config):
     criterion = nn.CrossEntropyLoss()
     
     epochs = config['spec_model']['epochs']
+    spec_save_epoch  = config['spec_model']['save_epoch']
+    os.makedirs("spec_model",exist_ok=True)
     csv_file = "spec_model/spectralnet_" + str(datetime.datetime.now())+".csv"
     headers = ['epoch','loss','loss_sn','loss_ce']
     with open(csv_file, 'w+', encoding='utf-8') as f:
@@ -170,12 +172,9 @@ def train(config):
             f.write('\n'+','.join(map(str, line)))
 
         scheduler.step()
-        """
-        TODO
-        Loss记录
-        模型保存，评估
-        """
-    torch.save(senet.state_dict(),'spec_model/spec_model.pt')
+        if (epoch + 1) % spec_save_epoch == 0:
+            torch.save(senet.state_dict(),'spec_model/spec_model_'+str(epoch)+'.pt')
+        
     print("finish training spectralnet!")
 
 def same_seeds(seed):
