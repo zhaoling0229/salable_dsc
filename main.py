@@ -5,14 +5,36 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from tqdm.contrib import tzip
+from sklearn.metrics import normalized_mutual_info_score, adjusted_rand_score
+import numpy as np
 import yaml
 import datetime
 from utils import *
 from networks import *
 from label_generate import *
 
+def evaluate(model,data_loader):
+    gt = np.array([])
+    p = np.array([])
+    with torch.no_grad():
+        for batch,label in data_loader:
+            _,outputs = model(batch)
+            _,pred = torch.max(outputs, 1)
+            p.extend(pred.numpy())
+            gt.extend(label.numpy())
+    
+    acc = Accuracy(p,gt)
+    nmi = normalized_mutual_info_score(p,gt)
+    pur = purity(p,gt)
+    ari = adjusted_rand_score(p,gt)
+
+    return acc,nmi,pur,ari
+
 def regularizer(c, lmbd=1.0):
     return lmbd * torch.abs(c).sum() + (1.0 - lmbd) / 2.0 * torch.pow(c, 2).sum()
+
+def p_normalize(x, p=2):
+    return x / (torch.norm(x, p=p, dim=1, keepdim=True) + 1e-6)
 
 def train_se(senet, train_loader,batch_size, epochs,save_epoch):
     """
@@ -80,7 +102,13 @@ def train(config):
     data_path = config["dataset"]["path"]
     data_num = config["dataset"]["num"]
     batch_size = config["params"]["batch_size"]
-    train_data = MyDataset(data_path=data_path, data_num=data_num)
+
+    full_data = np.load(data_path + "/cifar100_features.npy")
+    sampled_idx = np.random.choice(full_data.shape[0], data_num, replace=False)
+    data = p_normalize(torch.from_numpy(full_data[sampled_idx])).cuda()
+    full_labels = np.load(data_path + "/cifar100_labels.npy")
+    labels = torch.Tensor(full_labels[sampled_idx])
+    train_data = MyDataset(data,labels)
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=False)
 
     input_dims, hid_dims, out_dim,se_epochs,se_save_epoch = config["se_model"]["input_dims"], config[
@@ -88,7 +116,7 @@ def train(config):
 
     device = config['device']
     senet = SENet(input_dims, hid_dims, out_dim).to(device)
-    # senet = train_se(senet, train_loader,batch_size, se_epochs,se_save_epoch)
+    senet = train_se(senet, train_loader,batch_size, se_epochs,se_save_epoch)
 
     train_loader_ortho = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     
@@ -104,6 +132,7 @@ def train(config):
     
     epochs = config['spec_model']['epochs']
     spec_save_epoch  = config['spec_model']['save_epoch']
+    eval_epoch = config['spec_model']['eval_epoch']
     os.makedirs("spec_model",exist_ok=True)
     csv_file = "spec_model/spectralnet_" + str(datetime.datetime.now())+".csv"
     headers = ['epoch','loss','loss_sn','loss_ce']
@@ -115,9 +144,9 @@ def train(config):
     for epoch in pbar:
         pbar.set_description(f"Epoch {epoch}")
         # 生成伪标签
-        feature,_ = model(train_data.data)
-        clustering_loss = deepcluster.cluster(feature.cpu().data.numpy())
-        train_dataset = cluster_assign(deepcluster.cluster_lists,train_data.data)
+        feature,_ = model(data)
+        clustering_loss = deepcluster.cluster(feature.numpy())
+        train_dataset = cluster_assign(deepcluster.cluster_lists,data)
         # uniformly sample per target
         sampler = UnifLabelSampler(int(1 * len(train_dataset)),
                                    deepcluster.cluster_lists)
@@ -172,10 +201,22 @@ def train(config):
             f.write('\n'+','.join(map(str, line)))
 
         scheduler.step()
+
         if (epoch + 1) % spec_save_epoch == 0:
-            torch.save(senet.state_dict(),'spec_model/spec_model_'+str(epoch)+'.pt')
+            torch.save(model.state_dict(),'spec_model/spec_model_'+str(epoch)+'.pt')
+        
+        if (epoch + 1) % eval_epoch == 0:
+            print("Evaluating on sampled data...")
+            acc,nmi,pur,ari = evaluate(model,train_loader)
+            print("acc:",acc,"nmi:",nmi,"pur:",pur,"ari:",ari)
         
     print("finish training spectralnet!")
+
+    # 在整个数据集上评估
+    full_data_loader = DataLoader(MyDataset(full_data,full_labels), batch_size=batch_size, shuffle=False)
+    print("Evaluating on full data...")
+    acc,nmi,pur,ari = evaluate(model,full_data_loader)
+    print("acc:",acc,"nmi:",nmi,"pur:",pur,"ari:",ari)
 
 def same_seeds(seed):
     torch.manual_seed(seed)
