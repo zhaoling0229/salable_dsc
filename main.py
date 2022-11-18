@@ -55,6 +55,7 @@ def train_se(senet, train_loader,batch_size, epochs,save_epoch):
         n_batch ,rec_loss_item ,reg_loss_item ,loss_item = 0, 0, 0, 0
         for batch, _ in train_loader:
             n_batch += 1
+            batch = batch.cuda()
 
             q_batch = senet.query_embedding(batch)
             k_batch = senet.key_embedding(batch)
@@ -112,7 +113,7 @@ def train(config):
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=False)
 
     input_dims, hid_dims, out_dim,se_epochs,se_save_epoch = config["se_model"]["input_dims"], config[
-        "se_model"]["hid_dims"], config["se_model"]["output_dims"], config['se_model']['epochs'], config['se_model']['save_epochs']
+        "se_model"]["hid_dims"], config["se_model"]["output_dims"], config['se_model']['epochs'], config['se_model']['save_epoch']
 
     device = config['device']
     senet = SENet(input_dims, hid_dims, out_dim).to(device)
@@ -145,7 +146,7 @@ def train(config):
         pbar.set_description(f"Epoch {epoch}")
         # 生成伪标签
         feature,_ = model(data)
-        clustering_loss = deepcluster.cluster(feature.numpy())
+        clustering_loss = deepcluster.cluster(feature.cpu().detach().numpy())
         train_dataset = cluster_assign(deepcluster.cluster_lists,data)
         # uniformly sample per target
         sampler = UnifLabelSampler(int(1 * len(train_dataset)),
