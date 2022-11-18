@@ -36,7 +36,7 @@ def regularizer(c, lmbd=1.0):
 def p_normalize(x, p=2):
     return x / (torch.norm(x, p=p, dim=1, keepdim=True) + 1e-6)
 
-def train_se(senet, train_loader,batch_size, epochs,save_epoch):
+def train_se(senet, train_loader, block, batch_size, epochs,save_epoch):
     """
         训练自表达网络
         使用senet的代码块
@@ -55,18 +55,21 @@ def train_se(senet, train_loader,batch_size, epochs,save_epoch):
         n_batch ,rec_loss_item ,reg_loss_item ,loss_item = 0, 0, 0, 0
         for batch, _ in train_loader:
             n_batch += 1
-            batch = batch.cuda()
 
             q_batch = senet.query_embedding(batch)
             k_batch = senet.key_embedding(batch)
             # 损失计算
             rec_batch = torch.zeros_like(batch)
             reg = torch.zeros([1]).cuda()
-            for block,_ in train_loader:
-                k_block = senet.key_embedding(block)
-                c = senet.get_coeff(q_batch, k_block)
-                rec_batch = rec_batch + c.mm(block)
-                reg = reg + regularizer(c, 0.9)
+            # for block,_ in train_loader:
+            #     k_block = senet.key_embedding(block)
+            #     c = senet.get_coeff(q_batch, k_block)
+            #     rec_batch = rec_batch + c.mm(block)
+            #     reg = reg + regularizer(c, 0.9)
+            k_block = senet.key_embedding(block)
+            c = senet.get_coeff(q_batch, k_block)
+            rec_batch = rec_batch + c.mm(block)
+            reg = reg + regularizer(c, 0.9)
             
             diag_c = senet.thres((q_batch * k_batch).sum(dim=1, keepdim=True)) * senet.shrink
             rec_batch = rec_batch - diag_c * batch
@@ -106,7 +109,7 @@ def train(config):
 
     full_data = np.load(data_path + "/cifar100_features.npy")
     sampled_idx = np.random.choice(full_data.shape[0], data_num, replace=False)
-    data = p_normalize(torch.from_numpy(full_data[sampled_idx])).cuda()
+    data = p_normalize(torch.from_numpy(full_data[sampled_idx]).float()).cuda()
     full_labels = np.load(data_path + "/cifar100_labels.npy")
     labels = torch.Tensor(full_labels[sampled_idx])
     train_data = MyDataset(data,labels)
@@ -117,7 +120,7 @@ def train(config):
 
     device = config['device']
     senet = SENet(input_dims, hid_dims, out_dim).to(device)
-    senet = train_se(senet, train_loader,batch_size, se_epochs,se_save_epoch)
+    senet = train_se(senet, train_loader, data, batch_size, se_epochs,se_save_epoch)
 
     train_loader_ortho = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     
