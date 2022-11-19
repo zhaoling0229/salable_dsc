@@ -18,10 +18,14 @@ def evaluate(model,data_loader):
     p = np.array([])
     with torch.no_grad():
         for batch,label in data_loader:
+            batch = p_normalize(batch).cuda()
             _,outputs = model(batch)
+            # print(outputs.shape)
             _,pred = torch.max(outputs, 1)
-            p.extend(pred.numpy())
-            gt.extend(label.numpy())
+            pred = pred.int()
+            label = label.int()
+            p = np.append(p,pred.cpu().detach().numpy())
+            gt = np.append(gt,label.cpu().detach().numpy())
     
     acc = Accuracy(p,gt)
     nmi = normalized_mutual_info_score(p,gt)
@@ -190,7 +194,7 @@ def train(config):
             loss = (loss_sn + 100 * loss_ce) / batch_size
 
             loss.backward()
-            # optimizer.step()
+            optimizer.step()
 
             loss_sn_item += (loss_sn.item() / batch_size)
             loss_ce_item += (loss_ce.item() / batch_size)
