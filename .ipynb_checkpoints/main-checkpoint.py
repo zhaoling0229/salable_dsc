@@ -20,10 +20,7 @@ def evaluate(model,data_loader):
         for batch,label in data_loader:
             batch = p_normalize(batch).cuda()
             _,outputs = model(batch)
-            # print(outputs.shape)
             _,pred = torch.max(outputs, 1)
-            pred = pred.int()
-            label = label.int()
             p = np.append(p,pred.cpu().detach().numpy())
             gt = np.append(gt,label.cpu().detach().numpy())
     
