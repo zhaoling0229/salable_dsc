@@ -12,12 +12,13 @@ spec_model:
   output_dims: 512
   num_cluster: 100
   epsilon: 0.001
-  epochs: 5000
+  epochs: 400
   save_epoch: 500
   eval_epoch: 1000
   lambda: 10
 
 dataset:
+  name: "CIFAR100"
   path: "/root/dataset/CIFAR100-MCR2"
   num: 5000
   num_cluster: 100

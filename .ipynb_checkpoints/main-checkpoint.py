@@ -4,7 +4,6 @@ import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from tqdm.contrib import tzip
 from sklearn.metrics import normalized_mutual_info_score, adjusted_rand_score
 import numpy as np
 import yaml
@@ -13,12 +12,13 @@ from utils import *
 from networks import *
 from label_generate import *
 
-def evaluate(model,data_loader):
+def evaluate(model,data_loader,full = True):
     gt = np.array([])
     p = np.array([])
     with torch.no_grad():
         for batch,label in data_loader:
-            batch = p_normalize(batch).cuda()
+            if full:
+                batch = p_normalize(batch).cuda()
             _,outputs = model(batch)
             _,pred = torch.max(outputs, 1)
             p = np.append(p,pred.cpu().detach().numpy())
@@ -37,7 +37,7 @@ def regularizer(c, lmbd=1.0):
 def p_normalize(x, p=2):
     return x / (torch.norm(x, p=p, dim=1, keepdim=True) + 1e-6)
 
-def train_se(senet, train_loader, block, batch_size, epochs,save_epoch):
+def train_se(senet, train_loader, block, batch_size, epochs,save_epoch,save_path,name):
     """
         训练自表达网络
         使用senet的代码块
@@ -45,7 +45,11 @@ def train_se(senet, train_loader, block, batch_size, epochs,save_epoch):
     optimizer = optim.Adam(senet.parameters(), lr=0.001)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer,T_max=100,eta_min=0.0)
     os.makedirs("se_model",exist_ok=True)
-    csv_file = "se_model/senet_" + str(datetime.datetime.now())+".csv"
+    csv_path = save_path+'/csv_loss'
+    model_path = save_path+'/senet'
+    os.makedirs(csv_path,exist_ok=True)
+    os.makedirs(model_path,exist_ok=True)
+    csv_file = csv_path + "/senet_" + str(datetime.datetime.now())+".csv"
     headers = ['epoch','loss','loss_rec','loss_reg']
     with open(csv_file, 'w+', encoding='utf-8') as f:
         f.write(','.join(map(str, headers)))
@@ -89,42 +93,66 @@ def train_se(senet, train_loader, block, batch_size, epochs,save_epoch):
             reg_loss_item += (reg.item() / batch_size)
             loss_item += loss.item()
         
+        scheduler.step()
+        
         pbar.set_postfix(loss="{:3.4f}".format(loss_item / n_batch),
                              rec_loss="{:3.4f}".format(rec_loss_item / n_batch),
                              reg="{:3.4f}".format(reg_loss_item / n_batch))
         line = [str(epoch),'%.4f'%(loss_item / n_batch),'%.4f'%(rec_loss_item / n_batch),'%.4f'%(reg_loss_item / n_batch)]
         with open(csv_file, 'a', encoding='utf-8') as f:
             f.write('\n'+','.join(map(str, line)))
-        scheduler.step()
 
         if (epoch + 1) % save_epoch == 0:
-            torch.save(senet.state_dict(),'se_model/se_model_'+str(epoch)+'.pt')
+            torch.save(senet.state_dict(),model_path+'/se_'+name+'_'+str(epoch)+'.pt')
 
     print("finish training senet!")
     return senet
 
 def train(config):
+    name = config['dataset']['name']
     data_path = config["dataset"]["path"]
     data_num = config["dataset"]["num"]
     batch_size = config["params"]["batch_size"]
 
-    full_data = np.load(data_path + "/cifar100_features.npy")
+    if name == "CIFAR100":
+        full_data = np.load(data_path + "/cifar100-features.npy")
+        full_labels = np.load(data_path + "/cifar100-labels.npy")
+    elif name == "CIFAR10":
+        full_data = np.load(data_path + "/cifar10_features.npy")
+        full_labels = np.load(data_path + "/cifar10_labels.npy")
+    elif name == "MNIST":
+        full_data = np.load(data_path + "/cifar100_features.npy")
+        full_labels = np.load(data_path + "/cifar100_labels.npy")
+    elif name == "FashionMNIST":
+        full_data = np.load(data_path + "/cifar100_features.npy")
+        full_labels = np.load(data_path + "/cifar100_labels.npy")
+    elif name == "EMNIST":
+        full_data = np.load(data_path + "/cifar100_features.npy")
+        full_labels = np.load(data_path + "/cifar100_labels.npy")
+    elif name == "STL10":
+        full_data = np.load(data_path + "/stl10_features.npy")
+        full_labels = np.load(data_path + "/stl10_labels.npy")
+    elif name == "REUTERS":
+        full_data = np.load(data_path + "/cifar100_features.npy")
+        full_labels = np.load(data_path + "/cifar100_labels.npy")
+    else:
+        raise Exception("The dataset are currently not supported.")    
+
     sampled_idx = np.random.choice(full_data.shape[0], data_num, replace=False)
     data = p_normalize(torch.from_numpy(full_data[sampled_idx]).float()).cuda()
-    full_labels = np.load(data_path + "/cifar100_labels.npy")
     labels = torch.Tensor(full_labels[sampled_idx])
     train_data = MyDataset(data,labels)
-    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=False)
+    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
 
     input_dims, hid_dims, out_dim,se_epochs,se_save_epoch = config["se_model"]["input_dims"], config[
         "se_model"]["hid_dims"], config["se_model"]["output_dims"], config['se_model']['epochs'], config['se_model']['save_epoch']
 
     device = config['device']
-    senet = SENet(input_dims, hid_dims, out_dim).to(device)
-    senet = train_se(senet, train_loader, data, batch_size, se_epochs,se_save_epoch)
+    senet = SENet(input_dims, hid_dims, out_dim, kaiming_init=True).to(device)
+    # save_path = "se_model/"+name
+    # senet = train_se(senet, train_loader, data, batch_size, se_epochs,se_save_epoch,save_path,name)
+    senet.load_state_dict(torch.load("se_model/CIFAR100/senet/se_CIFAR100_4999.pt"))
 
-    train_loader_ortho = DataLoader(train_data, batch_size=batch_size, shuffle=True)
-    
     num_cluster = config['spec_model']['num_cluster']
     params = {'input_dims':config['spec_model']['input_dims'],'num_cluster':num_cluster,'n_hidden_1':config['spec_model']['hid_dims'][0],
         'n_hidden_2':config['spec_model']['hid_dims'][1],'epsilon':config['spec_model']['epsilon'],}
@@ -138,12 +166,18 @@ def train(config):
     epochs = config['spec_model']['epochs']
     spec_save_epoch  = config['spec_model']['save_epoch']
     eval_epoch = config['spec_model']['eval_epoch']
-    os.makedirs("spec_model",exist_ok=True)
-    csv_file = "spec_model/spectralnet_" + str(datetime.datetime.now())+".csv"
+
+    csv_path = 'spec_model/'+name+'/csv_loss'
+    model_path = 'spec_model/'+name+'/spectralnet'
+    os.makedirs(csv_path,exist_ok=True)
+    os.makedirs(model_path,exist_ok=True)
+
+    csv_file = csv_path+"/spectralnet_" + str(datetime.datetime.now())+".csv"
     headers = ['epoch','loss','loss_sn','loss_ce']
     with open(csv_file, 'w+', encoding='utf-8') as f:
         f.write(','.join(map(str, headers)))
 
+    train_loader_ortho = DataLoader(train_data, batch_size=500, shuffle=True)
     print("strat training spectralnet!")
     pbar = tqdm(range(epochs), ncols=120)
     for epoch in pbar:
@@ -157,7 +191,7 @@ def train(config):
                                    deepcluster.cluster_lists)
         train_dataloader = DataLoader(
             train_dataset,
-            batch_size=batch_size,
+            batch_size=500,
             # num_workers=2,
             sampler=sampler,
             # pin_memory=True,
@@ -179,13 +213,14 @@ def train(config):
 
             # compute similarity matrix for the batch
             with torch.no_grad():
-                W = torch.abs(senet.get_coeff(x,x))
+                W = torch.abs(senet(x,x))
+                W = 1000 * (W + W.T)
             
             optimizer.zero_grad()
 
             Y,P = model(x, ortho_step=False)
             Y_dists = (torch.cdist(Y, Y)) ** 2
-            loss_sn = (W * Y_dists).mean() * x.shape[0]
+            loss_sn = 100 * (W * Y_dists).mean() * x.shape[0]
 
             loss_ce = criterion(P,target)
             loss = (loss_sn + 100 * loss_ce) / batch_size
@@ -208,12 +243,16 @@ def train(config):
         scheduler.step()
 
         if (epoch + 1) % spec_save_epoch == 0:
-            torch.save(model.state_dict(),'spec_model/spec_model_'+str(epoch)+'.pt')
+            torch.save(model.state_dict(),model_path + '/spec_'+name+'_'+str(epoch)+'.pt')
         
         if (epoch + 1) % eval_epoch == 0:
             print("Evaluating on sampled data...")
-            acc,nmi,pur,ari = evaluate(model,train_loader)
-            print("acc:",acc,"nmi:",nmi,"pur:",pur,"ari:",ari)
+            acc,nmi,pur,ari = evaluate(model,train_loader,False)
+            log = "epoch:"+str(epoch)+" acc:"+str(acc)+"nmi:"+str(nmi)+"pur:"+str(pur)+"ari:"+str(ari)
+            with open('spec_model/'+name+'/evluation_'+name+'.txt','a') as f:
+                f.write('\n'+log)
+            f.close()
+            print(log)
         
     print("finish training spectralnet!")
 
@@ -221,7 +260,11 @@ def train(config):
     full_data_loader = DataLoader(MyDataset(full_data,full_labels), batch_size=batch_size, shuffle=False)
     print("Evaluating on full data...")
     acc,nmi,pur,ari = evaluate(model,full_data_loader)
-    print("acc:",acc,"nmi:",nmi,"pur:",pur,"ari:",ari)
+    log = "full data: acc:"+str(acc)+"nmi:"+str(nmi)+"pur:"+str(pur)+"ari:"+str(ari)
+    with open('spec_model/'+name+'/evluation_'+name+'.txt','a') as f:
+        f.write('\n'+log)
+    f.close()
+    print(log)
 
 def same_seeds(seed):
     torch.manual_seed(seed)

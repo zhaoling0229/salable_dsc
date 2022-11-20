@@ -93,13 +93,14 @@ def train_se(senet, train_loader, block, batch_size, epochs,save_epoch,save_path
             reg_loss_item += (reg.item() / batch_size)
             loss_item += loss.item()
         
+        scheduler.step()
+        
         pbar.set_postfix(loss="{:3.4f}".format(loss_item / n_batch),
                              rec_loss="{:3.4f}".format(rec_loss_item / n_batch),
                              reg="{:3.4f}".format(reg_loss_item / n_batch))
         line = [str(epoch),'%.4f'%(loss_item / n_batch),'%.4f'%(rec_loss_item / n_batch),'%.4f'%(reg_loss_item / n_batch)]
         with open(csv_file, 'a', encoding='utf-8') as f:
             f.write('\n'+','.join(map(str, line)))
-        scheduler.step()
 
         if (epoch + 1) % save_epoch == 0:
             torch.save(senet.state_dict(),model_path+'/se_'+name+'_'+str(epoch)+'.pt')
@@ -148,9 +149,10 @@ def train(config):
 
     device = config['device']
     senet = SENet(input_dims, hid_dims, out_dim, kaiming_init=True).to(device)
-    save_path = "se_model/"+name
-    senet = train_se(senet, train_loader, data, batch_size, se_epochs,se_save_epoch,save_path,name)
-    
+    # save_path = "se_model/"+name
+    # senet = train_se(senet, train_loader, data, batch_size, se_epochs,se_save_epoch,save_path,name)
+    senet.load_state_dict(torch.load("se_model/CIFAR100/senet/se_CIFAR100_4999.pt"))
+
     num_cluster = config['spec_model']['num_cluster']
     params = {'input_dims':config['spec_model']['input_dims'],'num_cluster':num_cluster,'n_hidden_1':config['spec_model']['hid_dims'][0],
         'n_hidden_2':config['spec_model']['hid_dims'][1],'epsilon':config['spec_model']['epsilon'],}
@@ -175,7 +177,7 @@ def train(config):
     with open(csv_file, 'w+', encoding='utf-8') as f:
         f.write(','.join(map(str, headers)))
 
-    train_loader_ortho = DataLoader(train_data, batch_size=batch_size, shuffle=True)
+    train_loader_ortho = DataLoader(train_data, batch_size=500, shuffle=True)
     print("strat training spectralnet!")
     pbar = tqdm(range(epochs), ncols=120)
     for epoch in pbar:
@@ -189,7 +191,7 @@ def train(config):
                                    deepcluster.cluster_lists)
         train_dataloader = DataLoader(
             train_dataset,
-            batch_size=batch_size,
+            batch_size=500,
             # num_workers=2,
             sampler=sampler,
             # pin_memory=True,
@@ -211,13 +213,14 @@ def train(config):
 
             # compute similarity matrix for the batch
             with torch.no_grad():
-                W = torch.abs(senet.get_coeff(x,x))
+                W = torch.abs(senet(x,x))
+                W = 1000 * (W + W.T)
             
             optimizer.zero_grad()
 
             Y,P = model(x, ortho_step=False)
             Y_dists = (torch.cdist(Y, Y)) ** 2
-            loss_sn = (W * Y_dists).mean() * x.shape[0]
+            loss_sn = 100 * (W * Y_dists).mean() * x.shape[0]
 
             loss_ce = criterion(P,target)
             loss = (loss_sn + 100 * loss_ce) / batch_size
