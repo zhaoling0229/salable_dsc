@@ -114,8 +114,8 @@ def train(config):
     batch_size = config["params"]["batch_size"]
 
     if name == "CIFAR100":
-        full_data = np.load(data_path + "/cifar100_features.npy")
-        full_labels = np.load(data_path + "/cifar100_labels.npy")
+        full_data = np.load(data_path + "/cifar100-features.npy")
+        full_labels = np.load(data_path + "/cifar100-labels.npy")
     elif name == "CIFAR10":
         full_data = np.load(data_path + "/cifar10_features.npy")
         full_labels = np.load(data_path + "/cifar10_labels.npy")
