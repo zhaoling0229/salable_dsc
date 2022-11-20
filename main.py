@@ -147,7 +147,7 @@ def train(config):
         "se_model"]["hid_dims"], config["se_model"]["output_dims"], config['se_model']['epochs'], config['se_model']['save_epoch']
 
     device = config['device']
-    senet = SENet(input_dims, hid_dims, out_dim).to(device)
+    senet = SENet(input_dims, hid_dims, out_dim, kaiming_init=True).to(device)
     save_path = "se_model/"+name
     senet = train_se(senet, train_loader, data, batch_size, se_epochs,se_save_epoch,save_path,name)
 
