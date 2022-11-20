@@ -141,7 +141,7 @@ def train(config):
     data = p_normalize(torch.from_numpy(full_data[sampled_idx]).float()).cuda()
     labels = torch.Tensor(full_labels[sampled_idx])
     train_data = MyDataset(data,labels)
-    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=False)
+    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
 
     input_dims, hid_dims, out_dim,se_epochs,se_save_epoch = config["se_model"]["input_dims"], config[
         "se_model"]["hid_dims"], config["se_model"]["output_dims"], config['se_model']['epochs'], config['se_model']['save_epoch']
@@ -150,8 +150,6 @@ def train(config):
     senet = SENet(input_dims, hid_dims, out_dim, kaiming_init=True).to(device)
     save_path = "se_model/"+name
     senet = train_se(senet, train_loader, data, batch_size, se_epochs,se_save_epoch,save_path,name)
-
-    train_loader_ortho = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     
     num_cluster = config['spec_model']['num_cluster']
     params = {'input_dims':config['spec_model']['input_dims'],'num_cluster':num_cluster,'n_hidden_1':config['spec_model']['hid_dims'][0],
@@ -177,6 +175,7 @@ def train(config):
     with open(csv_file, 'w+', encoding='utf-8') as f:
         f.write(','.join(map(str, headers)))
 
+    train_loader_ortho = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     print("strat training spectralnet!")
     pbar = tqdm(range(epochs), ncols=120)
     for epoch in pbar:

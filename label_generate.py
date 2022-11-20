@@ -6,7 +6,7 @@ import time
 
 # 重写
 class ReassignedDataset(data.Dataset):
-    def __init__(self, data_indexes, pseudolabels, dataset, transform=None):
+    def __init__(self, data_indexes, pseudolabels, dataset):
         self.data = dataset
         self.data_indexes = data_indexes
         self.pseudolabels = torch.Tensor(pseudolabels).long()
