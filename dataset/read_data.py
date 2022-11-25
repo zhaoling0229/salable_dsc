@@ -17,5 +17,6 @@ import pickle
 #                 data = pickle.load(f)
 #             print(file+':'+str(data.shape))
 
-data = np.load('E:/dataset/数据集特征/CIFAR100-MCR2/labels.npy')
-print(type(data[0]))
+data = np.load('E:/dataset/数据集特征/REUTERS10K-IDF/reutersidf10k.npy',allow_pickle=True).item()
+print(data['data'])
+print(data['label'])

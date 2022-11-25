@@ -5,6 +5,8 @@ se_model:
   epochs: 5000
   save_epoch: 500
   eval_epoch: 10000
+  lr: 0.001
+  batch_size: 400
 
 spec_model:
   input_dims: 128
@@ -15,16 +17,17 @@ spec_model:
   save_epoch: 500
   eval_epoch: 100
   lambda: 10
+  lr: 0.0003
+  batch_size: 400
+  lambda: 100
 
 dataset:
-  name: "CIFAR100"
-  path: "/root/dataset/CIFAR100-MCR2"
+  name: "CIFAR10"
+  path: "/root/dataset/CIFAR10-MCR2"
   num: 20000
-  num_cluster: 100
+  num_cluster: 10
 
 params: 
-  batch_size: 400  
-  lr: 0.001
-
-device: 'cuda'
-reassign: 1
+  device: 'cuda'
+  se_pretrained: False
+  se_model_path: ''

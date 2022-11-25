@@ -5,8 +5,8 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from sklearn.metrics import normalized_mutual_info_score, adjusted_rand_score
-from sklearn.cluster import KMeans
 import numpy as np
+import pickle
 import yaml
 import datetime
 from utils import *
@@ -14,13 +14,13 @@ from networks import *
 from label_generate import *
 from kmeans_pytorch import kmeans
 
-def evaluate(model,data_loader,full = True):
+def evaluate(model,data_loader,device,full = True):
     gt = np.array([])
     p = np.array([])
     with torch.no_grad():
         for batch,label in data_loader:
             if full:
-                batch = p_normalize(batch).cuda()
+                batch = p_normalize(batch).to(device)
             _,outputs = model(batch)
             _,pred = torch.max(outputs, 1)
             p = np.append(p,pred.cpu().detach().numpy())
@@ -43,12 +43,17 @@ def refined_subspace_affinity(s):
     weight = s**2 / s.sum(0)
     return (weight.t() / weight.sum(1)).t()
 
-def train_se(senet, train_loader, block, batch_size, epochs,save_epoch,save_path,name):
+def train_se(senet, train_loader, block,save_path, name,params):
     """
         训练自表达网络
         使用senet的代码块
     """
-    optimizer = optim.Adam(senet.parameters(), lr=0.001)
+    epochs = params['epochs']
+    batch_size = params['batch_size']
+    lr = params['lr']
+    save_epoch = params['save_epoch']
+
+    optimizer = optim.Adam(senet.parameters(), lr=lr)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer,T_max=100,eta_min=0.0)
     os.makedirs("se_model",exist_ok=True)
     csv_path = save_path+'/csv_loss'
@@ -72,11 +77,7 @@ def train_se(senet, train_loader, block, batch_size, epochs,save_epoch,save_path
             # 损失计算
             rec_batch = torch.zeros_like(batch)
             reg = torch.zeros([1]).cuda()
-            # for block,_ in train_loader:
-            #     k_block = senet.key_embedding(block)
-            #     c = senet.get_coeff(q_batch, k_block)
-            #     rec_batch = rec_batch + c.mm(block)
-            #     reg = reg + regularizer(c, 0.9)
+
             k_block = senet.key_embedding(block)
             c = senet.get_coeff(q_batch, k_block)
             rec_batch = rec_batch + c.mm(block)
@@ -114,12 +115,12 @@ def train_se(senet, train_loader, block, batch_size, epochs,save_epoch,save_path
     print("finish training senet!")
     return senet
 
-def cosinematrix(A):
-    prod = torch.mm(A, A.t())#分子
-    norm = torch.norm(A,p=2,dim=1).unsqueeze(0)#分母
-    cos = prod.div(torch.mm(norm.t(),norm))
-    return cos
- 
+def write_log(log,path):
+    with open(path,'a') as f:
+        f.write('\n'+log)
+    f.close()
+    print(log)
+
 def train(config):
     name = config['dataset']['name']
     data_path = config["dataset"]["path"]
@@ -127,96 +128,117 @@ def train(config):
     num_cluster = config["dataset"]["num_cluster"]
     batch_size = config["params"]["batch_size"]
 
-    if name == "CIFAR100":
-        full_data = np.load(data_path + "/cifar100-features.npy")
-        full_labels = np.load(data_path + "/cifar100-labels.npy")
-    elif name == "CIFAR10":
-        full_data = np.load(data_path + "/cifar10_features.npy")
-        full_labels = np.load(data_path + "/cifar10_labels.npy")
-    elif name == "MNIST":
-        full_data = np.load(data_path + "/cifar100_features.npy")
-        full_labels = np.load(data_path + "/cifar100_labels.npy")
-    elif name == "FashionMNIST":
-        full_data = np.load(data_path + "/cifar100_features.npy")
-        full_labels = np.load(data_path + "/cifar100_labels.npy")
-    elif name == "EMNIST":
-        full_data = np.load(data_path + "/cifar100_features.npy")
-        full_labels = np.load(data_path + "/cifar100_labels.npy")
-    elif name == "STL10":
-        full_data = np.load(data_path + "/stl10_features.npy")
-        full_labels = np.load(data_path + "/stl10_labels.npy")
-    elif name == "REUTERS":
-        full_data = np.load(data_path + "/cifar100_features.npy")
-        full_labels = np.load(data_path + "/cifar100_labels.npy")
+    if name in ["CIFAR100","CIFAR10","STL10"]:
+        full_data = np.load(data_path + "/"+name+"-features.npy")
+        full_labels = np.load(data_path + "/"+name+"-labels.npy")
+
+    elif name in ["MNIST", "FashionMNIST", "EMNIST"]:
+        with open(data_path+"/"+name+"_scattering_train_data.pkl", 'rb') as f:
+            train_samples = pickle.load(f)
+        with open(data_path+"/"+name+"_scattering_train_label.pkl", 'rb') as f:
+            train_labels = pickle.load(f)
+        with open(data_path+"/"+name+"_scattering_test_data.pkl", 'rb') as f:
+            test_samples = pickle.load(f)
+        with open(data_path+"/"+name+"_scattering_test_label.pkl", 'rb') as f:
+            test_labels = pickle.load(f)
+
+        full_data = np.concatenate([train_samples, test_samples], axis=0)
+        full_labels = np.concatenate([train_labels, test_labels], axis=0)
+
+    elif name in ["REUTERS"]:
+        data = np.load(data_path+'/'+'reutersidf10k.npy',allow_pickle=True).item()
+        full_data = data['data']
+        full_labels = data['label']
+
     else:
         raise Exception("The dataset are currently not supported.")    
 
     sampled_idx = np.random.choice(full_data.shape[0], data_num, replace=False)
-    data = p_normalize(torch.from_numpy(full_data[sampled_idx]).float()).cuda()
+    data = p_normalize(torch.from_numpy(full_data[sampled_idx]).float()).to(device)
     labels = torch.Tensor(full_labels[sampled_idx])
     train_data = MyDataset(data,labels)
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
 
-    input_dims, hid_dims, out_dim,se_epochs,se_save_epoch = config["se_model"]["input_dims"], config[
-        "se_model"]["hid_dims"], config["se_model"]["output_dims"], config['se_model']['epochs'], config['se_model']['save_epoch']
-
     device = config['device']
-    senet = SENet(input_dims, hid_dims, out_dim, kaiming_init=True).to(device)
-    save_path = "se_model/"+name
-    # senet = train_se(senet, train_loader, data, batch_size, se_epochs,se_save_epoch,save_path,name)
-    senet.load_state_dict(torch.load("se_model/CIFAR100/senet/se_CIFAR100_4999.pt"))
+    input_dims, hid_dims, out_dim = config["se_model"]["input_dims"], config[
+        "se_model"]["hid_dims"], config["se_model"]["output_dims"]
 
-    params = {'input_dims':config['spec_model']['input_dims'],'num_cluster':num_cluster,'n_hidden_1':config['spec_model']['hid_dims'][0],
-        'n_hidden_2':config['spec_model']['hid_dims'][1],'epsilon':config['spec_model']['epsilon'],}
-    model = SpectralNet(params).to(device)
-    learning_rate = config['params']['lr']
-    optimizer = optim.Adam(model.parameters(), lr=3 * 1e-4)
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer,T_max=100,eta_min=0.0)
-    deepcluster = Kmeans(num_cluster)
-    criterion = nn.KLDivLoss(reduction = 'batchmean')
+    senet = SENet(input_dims, hid_dims, out_dim, kaiming_init=True).to(device)
+    se_pretrained = config['params']['se_pretrained']
+    if se_pretrained:
+        se_model_path = config['params']['se_model_path']
+        senet.load_state_dict(torch.load(se_model_path))
+    else:
+        save_path = "se_model/"+name
+        params = config["se_model"]
+        senet = train_se(senet, train_loader, data,save_path,name,params)
     
+    # train spectralnet
+    params = config['spec_model']
+    params['n_hidden_1'] = params['hid_dims'][0]
+    params['n_hidden_2'] = params['hid_dims'][1]
+    params ['num_cluster'] = num_cluster
+
+    model = SpectralNet(params).to(device)
+    # deepcluster = Kmeans(num_cluster)
+
+    # train params
+    lr = config['spec_model']['lr']
+    optimizer = optim.Adam(model.parameters(), lr=lr)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer,T_max=100,eta_min=0.0)
+    criterion = nn.KLDivLoss(reduction = 'batchmean')
+    lmda = config['spec_model']['lambda']
+    
+    # epoch params
     epochs = config['spec_model']['epochs']
     spec_save_epoch  = config['spec_model']['save_epoch']
     eval_epoch = config['spec_model']['eval_epoch']
 
+    # path params 
     csv_path = 'spec_model/'+name+'/csv_loss'
     model_path = 'spec_model/'+name+'/spectralnet'
     os.makedirs(csv_path,exist_ok=True)
     os.makedirs(model_path,exist_ok=True)
 
+    # loss log csv file
     csv_file = csv_path+"/spectralnet_" + str(datetime.datetime.now())+".csv"
     headers = ['epoch','loss','loss_sn','loss_ce']
     with open(csv_file, 'w+', encoding='utf-8') as f:
         f.write(','.join(map(str, headers)))
 
+    # ortho dataloader
     train_loader_ortho = DataLoader(train_data, batch_size=batch_size, shuffle=True)
+
     print("strat training spectralnet!")
+    log = 'dataset: ' + name + 'batch_size: '+ str(batch_size) + 'learning rate: ' + str(lr)
+    path = 'spec_model/'+name+'/evluation_'+name+'.txt'
+    write_log(log,path)
+
     pbar = tqdm(range(epochs), ncols=120)
     for epoch in pbar:
         pbar.set_description(f"Epoch {epoch}")
         # 生成伪标签
-#         feature,_ = model(data)
-#         cluster,cluster_centers = kmeans(X=feature, num_clusters=num_cluster, distance='euclidean', device=torch.device('cuda'))
-#         cluster = cluster.numpy().tolist()
-#         # print(cluster)
-#         # clustering_loss = deepcluster.cluster(feature.cpu().detach().numpy())
-#         # feature = feature.cpu().detach().numpy()
-#         # I = deepcluster.cluster(feature)
+        # feature,_ = model(data)
+        # cluster,cluster_centers = kmeans(X=feature, num_clusters=num_cluster, distance='euclidean', device=torch.device('cuda'))
+        # cluster = cluster.numpy().tolist()
+        # # print(cluster)
+        # # clustering_loss = deepcluster.cluster(feature.cpu().detach().numpy())
+        # # feature = feature.cpu().detach().numpy()
+        # # I = deepcluster.cluster(feature)
         
-#         train_dataset = cluster_assign(cluster_lists,data)
-#         # uniformly sample per target
-#         sampler = UnifLabelSampler(int(1 * len(train_dataset)),
-#                                    cluster_lists)
-#         train_dataloader = DataLoader(
-#             train_dataset,
-#             batch_size=batch_size,
-#             # num_workers=2,
-#             sampler=sampler,
-#             # pin_memory=True,
-#         )
-        n_batch, loss_sn_item , loss_ce_item,loss_item = 0,0,0,0
-
-        for (data_ortho,_), (data_grad,label) in zip(train_loader_ortho, train_loader):
+        # train_dataset = cluster_assign(cluster_lists,data)
+        # # uniformly sample per target
+        # sampler = UnifLabelSampler(int(1 * len(train_dataset)),
+        #                            cluster_lists)
+        # train_dataloader = DataLoader(
+        #     train_dataset,
+        #     batch_size=batch_size,
+        #     # num_workers=2,
+        #     sampler=sampler,
+        #     # pin_memory=True,
+        # )
+        n_batch, loss_sn_item, loss_dec_item, loss_item = 0,0,0,0
+        for (data_ortho,_), (data_grad,_) in zip(train_loader_ortho, train_loader):
             n_batch += 1
             # QR分解正交
             x = data_ortho
@@ -226,46 +248,37 @@ def train(config):
                 res = model(x, ortho_step=True)
 
             # 梯度计算
-            x, target = data_grad,label
-            x, target = x.to(device), target.to(device)
+            x = data_grad
+            x = x.to(device)
 
             # compute similarity matrix for the batch
             with torch.no_grad():
                 W = torch.abs(senet(x,x))
                 W = W + W.T
-                # print(W.nonzero().shape)
             
             optimizer.zero_grad()
-            
-            # print(label)
+    
             Y,P = model(x, ortho_step=False)
-            
             tmp_s = P.data
             s_tilde = refined_subspace_affinity(tmp_s)
-            
-            # d_matrix=cosinematrix(Y)
-            # print(d_matrix)
-            # _,pred = torch.max(P, 1)
-            # print(pred)
-            
             Y_dists = (torch.cdist(Y, Y)) ** 2
-            loss_sn = 100 * (W * Y_dists).mean() * x.shape[0]
 
-            loss_ce = criterion(P.log(),s_tilde)
-            loss = (loss_sn + 100 * loss_ce) / batch_size
+            loss_sn = (W * Y_dists).mean() * x.shape[0]
+            loss_dec = criterion(P.log(),s_tilde)
+            loss = loss_sn + lmda * loss_dec
 
             loss.backward()
             optimizer.step()
 
-            loss_sn_item += (loss_sn.item() / batch_size)
-            loss_ce_item += (loss_ce.item() / batch_size)
+            loss_sn_item += loss_sn.item()
+            loss_dec_item += loss_dec.item()
             loss_item += loss.item()
         
         pbar.set_postfix(loss="{:3.4f}".format(loss_item / n_batch),
                 loss_sn="{:3.4f}".format(loss_sn_item / n_batch),
-                loss_ce="{:3.4f}".format(loss_ce_item / n_batch))
+                loss_ce="{:3.4f}".format(loss_dec_item / n_batch))
 
-        line = [str(epoch),'%.4f'%(loss_item / n_batch),'%.4f'%(loss_sn_item / n_batch),'%.4f'%(loss_ce_item / n_batch)]
+        line = [str(epoch),'%.4f'%(loss_item / n_batch),'%.4f'%(loss_sn_item / n_batch),'%.4f'%(loss_dec_item / n_batch)]
         with open(csv_file, 'a', encoding='utf-8') as f:
             f.write('\n'+','.join(map(str, line)))
 
@@ -276,36 +289,19 @@ def train(config):
         
         if (epoch + 1) % eval_epoch == 0:
             print("Evaluating on sampled data...")
-            acc,nmi,pur,ari = evaluate(model,train_loader,False)
-            # log = "epoch:"+str(epoch)+" acc:"+str(acc)+"nmi:"+str(nmi)+"pur:"+str(pur)+"ari:"+str(ari)
-            log = "epoch: %d, acc: %.5f, nmi: %.5f, pur: %.5f, ari: %.5f"%(epoch,acc,nmi,pur,ari)
-            with open('spec_model/'+name+'/evluation_'+name+'.txt','a') as f:
-                f.write('\n'+log)
-            f.close()
-            print(log)
+            acc,nmi,pur,ari = evaluate(model,train_loader,device,False)
+            log = "sampled dataset in epoch: %d, acc: %.5f, nmi: %.5f, pur: %.5f, ari: %.5f"%(epoch,acc,nmi,pur,ari)
+            write_log(log,path)
             
             # 在整个数据集上评估
             full_data_loader = DataLoader(MyDataset(full_data,full_labels), batch_size=batch_size, shuffle=False)
             print("Evaluating on full data...")
-            acc,nmi,pur,ari = evaluate(model,full_data_loader)
+            acc,nmi,pur,ari = evaluate(model,full_data_loader,device)
             #log = "full data: acc:"+str(acc)+"nmi:"+str(nmi)+"pur:"+str(pur)+"ari:"+str(ari)
-            log = "epoch: %d, acc: %.5f, nmi: %.5f, pur: %.5f, ari: %.5f"%(epoch,acc,nmi,pur,ari)
-            with open('spec_model/'+name+'/evluation_'+name+'.txt','a') as f:
-                f.write('\n'+log)
-            f.close()
-            print(log)
+            log = "full dataset in epoch: %d, acc: %.5f, nmi: %.5f, pur: %.5f, ari: %.5f"%(epoch,acc,nmi,pur,ari)
+            write_log(log,path)
         
     print("finish training spectralnet!")
-
-    # # 在整个数据集上评估
-    # full_data_loader = DataLoader(MyDataset(full_data,full_labels), batch_size=batch_size, shuffle=False)
-    # print("Evaluating on full data...")
-    # acc,nmi,pur,ari = evaluate(model,full_data_loader)
-    # log = "full data: acc:"+str(acc)+"nmi:"+str(nmi)+"pur:"+str(pur)+"ari:"+str(ari)
-    # with open('spec_model/'+name+'/evluation_'+name+'.txt','a') as f:
-    #     f.write('\n'+log)
-    # f.close()
-    # print(log)
 
 def same_seeds(seed):
     torch.manual_seed(seed)
@@ -319,7 +315,7 @@ def same_seeds(seed):
     torch.backends.cudnn.deterministic = True
 
 if __name__ == "__main__":
-    config_file = open("./config/config_init.yaml",'r')
+    config_file = open("./config/CIFAR100.yaml",'r')
     config = yaml.load(config_file,Loader=yaml.FullLoader)
     same_seeds(1)
     train(config)
