@@ -126,7 +126,6 @@ def train(config):
     data_path = config["dataset"]["path"]
     data_num = config["dataset"]["num"]
     num_cluster = config["dataset"]["num_cluster"]
-    batch_size = config["params"]["batch_size"]
 
     if name in ["CIFAR100","CIFAR10","STL10"]:
         full_data = np.load(data_path + "/"+name+"-features.npy")
@@ -152,14 +151,14 @@ def train(config):
 
     else:
         raise Exception("The dataset are currently not supported.")    
-
+    device = config['params']['device']
     sampled_idx = np.random.choice(full_data.shape[0], data_num, replace=False)
     data = p_normalize(torch.from_numpy(full_data[sampled_idx]).float()).to(device)
     labels = torch.Tensor(full_labels[sampled_idx])
     train_data = MyDataset(data,labels)
-    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
+    se_batch_size = config['se_model']['batch_size']
+    train_loader = DataLoader(train_data, batch_size=se_batch_size, shuffle=True)
 
-    device = config['device']
     input_dims, hid_dims, out_dim = config["se_model"]["input_dims"], config[
         "se_model"]["hid_dims"], config["se_model"]["output_dims"]
 
@@ -183,11 +182,12 @@ def train(config):
     # deepcluster = Kmeans(num_cluster)
 
     # train params
-    lr = config['spec_model']['lr']
+    lr = params['lr']
     optimizer = optim.Adam(model.parameters(), lr=lr)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer,T_max=100,eta_min=0.0)
     criterion = nn.KLDivLoss(reduction = 'batchmean')
-    lmda = config['spec_model']['lambda']
+    lmda = params['lambda']
+    spec_batch_size = params['batch_size']
     
     # epoch params
     epochs = config['spec_model']['epochs']
@@ -207,10 +207,11 @@ def train(config):
         f.write(','.join(map(str, headers)))
 
     # ortho dataloader
-    train_loader_ortho = DataLoader(train_data, batch_size=batch_size, shuffle=True)
+    train_loader_ortho = DataLoader(train_data, batch_size=spec_batch_size, shuffle=True)
+    train_loader_grad = DataLoader(train_data, batch_size=spec_batch_size, shuffle=True)
 
     print("strat training spectralnet!")
-    log = 'dataset: ' + name + 'batch_size: '+ str(batch_size) + 'learning rate: ' + str(lr)
+    log = 'dataset: ' + name + ' batch_size: '+ str(spec_batch_size) + ' learning rate: ' + str(lr)
     path = 'spec_model/'+name+'/evluation_'+name+'.txt'
     write_log(log,path)
 
@@ -238,7 +239,7 @@ def train(config):
         #     # pin_memory=True,
         # )
         n_batch, loss_sn_item, loss_dec_item, loss_item = 0,0,0,0
-        for (data_ortho,_), (data_grad,_) in zip(train_loader_ortho, train_loader):
+        for (data_ortho,_), (data_grad,_) in zip(train_loader_ortho, train_loader_grad):
             n_batch += 1
             # QR分解正交
             x = data_ortho
@@ -294,7 +295,7 @@ def train(config):
             write_log(log,path)
             
             # 在整个数据集上评估
-            full_data_loader = DataLoader(MyDataset(full_data,full_labels), batch_size=batch_size, shuffle=False)
+            full_data_loader = DataLoader(MyDataset(full_data,full_labels), batch_size=spec_batch_size, shuffle=False)
             print("Evaluating on full data...")
             acc,nmi,pur,ari = evaluate(model,full_data_loader,device)
             #log = "full data: acc:"+str(acc)+"nmi:"+str(nmi)+"pur:"+str(pur)+"ari:"+str(ari)
@@ -315,7 +316,7 @@ def same_seeds(seed):
     torch.backends.cudnn.deterministic = True
 
 if __name__ == "__main__":
-    config_file = open("./config/CIFAR100.yaml",'r')
+    config_file = open("./config/CIFAR10.yaml",'r')
     config = yaml.load(config_file,Loader=yaml.FullLoader)
     same_seeds(1)
     train(config)
