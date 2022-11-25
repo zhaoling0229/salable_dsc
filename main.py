@@ -11,8 +11,8 @@ import yaml
 import datetime
 from utils import *
 from networks import *
-from label_generate import *
-from kmeans_pytorch import kmeans
+# from label_generate import *
+import argparse
 
 def evaluate(model,data_loader,device,full = True):
     gt = np.array([])
@@ -211,7 +211,7 @@ def train(config):
     train_loader_grad = DataLoader(train_data, batch_size=spec_batch_size, shuffle=True)
 
     print("strat training spectralnet!")
-    log = 'dataset: ' + name + ' batch_size: '+ str(spec_batch_size) + ' learning rate: ' + str(lr)
+    log = 'dataset: ' + name +'num_sampled_data: '+ str(data_num) + ' batch_size: '+ str(spec_batch_size) + ' learning rate: ' + str(lr)
     path = 'spec_model/'+name+'/evluation_'+name+'.txt'
     write_log(log,path)
 
@@ -316,7 +316,12 @@ def same_seeds(seed):
     torch.backends.cudnn.deterministic = True
 
 if __name__ == "__main__":
-    config_file = open("./config/CIFAR10.yaml",'r')
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dataset', type=str, default="MNIST")
+    args = parser.parse_args()
+
+    assert args.dataset not in ['CIFAR10','CIFAR100','STL10','MNIST','FashionMNIST','EMNIST','REUTERS'], 'The dataset are currently not supported.'
+    config_file = open("./config/{}.yaml".format(args.dataset),'r')
     config = yaml.load(config_file,Loader=yaml.FullLoader)
     same_seeds(1)
     train(config)

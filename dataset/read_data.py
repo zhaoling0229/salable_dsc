@@ -18,5 +18,5 @@ import pickle
 #             print(file+':'+str(data.shape))
 
 data = np.load('E:/dataset/数据集特征/REUTERS10K-IDF/reutersidf10k.npy',allow_pickle=True).item()
-print(data['data'])
+print(data['data'].shape)
 print(data['label'])
