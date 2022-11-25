@@ -33,6 +33,7 @@ def run_kmeans(x, nmb_clusters, verbose=False):
 
     n_data, d = x.shape
     # faiss implementation of k-means
+    # clus = faiss.Kmeans(d, nmb_clusters, niter=1000, verbose=False, gpu=True)
     clus = faiss.Clustering(d, nmb_clusters)
 
     # Change faiss seed at each k-means so that the randomly picked
@@ -51,11 +52,15 @@ def run_kmeans(x, nmb_clusters, verbose=False):
     # perform the training
     clus.train(x, index) 
     _, I = index.search(x, 1) # search API，搜索距离x每个数据最近的1个index中的向量
+    print(I)
     losses = faiss.vector_to_array(clus.obj)
+    # clus.train(x)
+    # D, I = clus.index.search(x, 1)
+    
     if verbose:
         print('k-means loss evolution: {0}'.format(losses))
 
-    return [int(n[0]) for n in I], losses[-1]
+    return [int(n[0]) for n in I] , losses[-1]
 
 class Kmeans(object):
     def __init__(self, k):
@@ -65,7 +70,7 @@ class Kmeans(object):
         end = time.time()
 
         # cluster the data
-        I, loss = run_kmeans(data, self.k, verbose)
+        I,_ = run_kmeans(data, self.k, verbose)
         self.cluster_lists = [[] for i in range(self.k)]
         for i in range(len(data)):
             self.cluster_lists[I[i]].append(i)
@@ -73,4 +78,4 @@ class Kmeans(object):
         if verbose:
             print('k-means time: {0:.0f} s'.format(time.time() - end))
 
-        return loss
+        return I

@@ -10,21 +10,20 @@ spec_model:
   input_dims: 128
   hid_dims: [1024,512]
   output_dims: 512
-  num_cluster: 100
   epsilon: 0.001
-  epochs: 400
+  epochs: 2000
   save_epoch: 500
-  eval_epoch: 1000
+  eval_epoch: 100
   lambda: 10
 
 dataset:
   name: "CIFAR100"
   path: "/root/dataset/CIFAR100-MCR2"
-  num: 5000
+  num: 20000
   num_cluster: 100
 
 params: 
-  batch_size: 200  
+  batch_size: 400  
   lr: 0.001
 
 device: 'cuda'
