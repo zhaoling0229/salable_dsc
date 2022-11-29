@@ -39,7 +39,7 @@ def regularizer(c, lmbd=1.0):
 def p_normalize(x, p=2):
     return x / (torch.norm(x, p=p, dim=1, keepdim=True) + 1e-6)
 
-def refined_subspace_affinity(s):
+def target_distribution(s):
     weight = s**2 / s.sum(0)
     return (weight.t() / weight.sum(1)).t()
 
@@ -261,7 +261,7 @@ def train(config):
     
             Y,P = model(x, ortho_step=False)
             tmp_s = P.data
-            s_tilde = refined_subspace_affinity(tmp_s)
+            s_tilde = target_distribution(tmp_s)
             Y_dists = (torch.cdist(Y, Y)) ** 2
 
             loss_sn = (W * Y_dists).mean() * x.shape[0]
