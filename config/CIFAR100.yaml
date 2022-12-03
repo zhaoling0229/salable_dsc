@@ -7,6 +7,8 @@ se_model:
   eval_epoch: 10000
   lr: 0.001
   batch_size: 400
+  gamma: 200
+  lmbd: 0.9
 
 spec_model:
   input_dims: 128
@@ -16,15 +18,14 @@ spec_model:
   epochs: 2000
   save_epoch: 500
   eval_epoch: 100
-  lambda: 10
-  lr: 0.0003
+  lr: 0.00001
   batch_size: 400
-  lambda: 100
+  lambda: 10
 
 dataset:
   name: "CIFAR100"
   path: "/root/dataset/CIFAR100-MCR2"
-  num: 20000
+  num: 10000
   num_cluster: 100
 
 params: 

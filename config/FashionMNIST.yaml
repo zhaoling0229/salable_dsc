@@ -2,11 +2,13 @@ se_model:
   input_dims: 500
   hid_dims: [1024,1024]
   output_dims: 1024
-  epochs: 5000
+  epochs: 2000
   save_epoch: 500
   eval_epoch: 10000
   lr: 0.001
-  batch_size: 400
+  batch_size: 200
+  gamma: 200
+  lmbd: 0.9
 
 spec_model:
   input_dims: 500
@@ -16,17 +18,17 @@ spec_model:
   epochs: 2000
   save_epoch: 500
   eval_epoch: 100
-  lr: 0.0003
-  batch_size: 400
+  lr: 0.00007
+  batch_size: 500
   lambda: 100
 
 dataset:
   name: "FashionMNIST"
   path: "/root/dataset/FashionMNIST"
-  num: 2000
+  num: 5000
   num_cluster: 10
 
 params: 
   device: 'cuda'
-  se_pretrained: False
-  se_model_path: ''
+  se_pretrained: True
+  se_model_path: 'se_model/FashionMNIST/senet/se_FashionMNIST_1999.pt'

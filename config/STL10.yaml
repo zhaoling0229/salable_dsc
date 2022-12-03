@@ -6,19 +6,21 @@ se_model:
   save_epoch: 500
   eval_epoch: 10000
   lr: 0.001
-  batch_size: 400
+  batch_size: 100
+  gamma: 200
+  lmbd: 0.9
 
 spec_model:
   input_dims: 128
   hid_dims: [1024,512]
   output_dims: 512
   epsilon: 0.001
-  epochs: 2000
-  save_epoch: 500
+  epochs: 1500
+  save_epoch: 300
   eval_epoch: 100
   lambda: 10
-  lr: 0.0003
-  batch_size: 400
+  lr: 0.00007
+  batch_size: 200
   lambda: 100
 
 dataset:
@@ -29,5 +31,5 @@ dataset:
 
 params: 
   device: 'cuda'
-  se_pretrained: False
-  se_model_path: ''
+  se_pretrained: True
+  se_model_path: 'se_model/STL10/senet/se_STL10_1999.pt'

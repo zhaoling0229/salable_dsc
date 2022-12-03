@@ -7,6 +7,8 @@ se_model:
   eval_epoch: 10000
   lr: 0.001
   batch_size: 200
+  gamma: 200
+  lmbd: 0.9
 
 spec_model:
   input_dims: 128

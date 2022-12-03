@@ -9,6 +9,7 @@ import numpy as np
 import pickle
 import yaml
 import datetime
+from kmeans_pytorch import kmeans
 from utils import *
 from networks import *
 # from label_generate import *
@@ -52,6 +53,8 @@ def train_se(senet, train_loader, block,save_path, name,params):
     batch_size = params['batch_size']
     lr = params['lr']
     save_epoch = params['save_epoch']
+    gamma = params['gamma']
+    lmbd = params['lmbd']
 
     optimizer = optim.Adam(senet.parameters(), lr=lr)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer,T_max=100,eta_min=0.0)
@@ -81,14 +84,14 @@ def train_se(senet, train_loader, block,save_path, name,params):
             k_block = senet.key_embedding(block)
             c = senet.get_coeff(q_batch, k_block)
             rec_batch = rec_batch + c.mm(block)
-            reg = reg + regularizer(c, 0.9)
+            reg = reg + regularizer(c, lmbd)
             
             diag_c = senet.thres((q_batch * k_batch).sum(dim=1, keepdim=True)) * senet.shrink
             rec_batch = rec_batch - diag_c * batch
-            reg = reg - regularizer(diag_c, 0.9)
+            reg = reg - regularizer(diag_c, lmbd)
 
             rec_loss = torch.sum(torch.pow(batch - rec_batch, 2))
-            loss = (0.5 * 200 * rec_loss + reg) / batch_size
+            loss = (0.5 * gamma * rec_loss + reg) / batch_size
 
             # 反向传播
             optimizer.zero_grad()
@@ -183,7 +186,7 @@ def train(config):
 
     # train params
     lr = params['lr']
-    optimizer = optim.Adam(model.parameters(), lr=lr)
+    optimizer = optim.SGD(model.parameters(), lr=lr)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer,T_max=100,eta_min=0.0)
     criterion = nn.KLDivLoss(reduction = 'batchmean')
     lmda = params['lambda']
@@ -238,6 +241,7 @@ def train(config):
         #     sampler=sampler,
         #     # pin_memory=True,
         # )
+        
         n_batch, loss_sn_item, loss_dec_item, loss_item = 0,0,0,0
         for (data_ortho,_), (data_grad,_) in zip(train_loader_ortho, train_loader_grad):
             n_batch += 1
@@ -320,7 +324,7 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', type=str, default="MNIST")
     args = parser.parse_args()
 
-    assert args.dataset not in ['CIFAR10','CIFAR100','STL10','MNIST','FashionMNIST','EMNIST','REUTERS'], 'The dataset are currently not supported.'
+    assert args.dataset in ['CIFAR10','CIFAR100','STL10','MNIST','FashionMNIST','EMNIST','REUTERS'], 'The dataset are currently not supported.'
     config_file = open("./config/{}.yaml".format(args.dataset),'r')
     config = yaml.load(config_file,Loader=yaml.FullLoader)
     same_seeds(1)

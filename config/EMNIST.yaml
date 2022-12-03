@@ -7,6 +7,8 @@ se_model:
   eval_epoch: 10000
   lr: 0.001
   batch_size: 400
+  gamma: 150
+  lmbd: 1
 
 spec_model:
   input_dims: 500
@@ -16,17 +18,17 @@ spec_model:
   epochs: 2000
   save_epoch: 500
   eval_epoch: 100
-  lr: 0.0003
-  batch_size: 400
+  lr: 0.0001
+  batch_size: 1000
   lambda: 100
 
 dataset:
   name: "EMNIST"
   path: "/root/dataset/EMNIST"
-  num: 20000
+  num: 10000
   num_cluster: 26
 
 params: 
   device: 'cuda'
-  se_pretrained: False
-  se_model_path: ''
+  se_pretrained: True
+  se_model_path: 'se_model/EMNIST/senet/se_EMNIST_2499.pt'
