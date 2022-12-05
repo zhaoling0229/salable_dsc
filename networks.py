@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.init as init
 import torch.nn.functional as F
+from torch.nn.parameter import Parameter
 import numpy as np
 
 
@@ -108,6 +109,7 @@ class SpectralNet(nn.Module):
         n_hidden_2 = params['n_hidden_2']
         k = params['num_cluster']
 
+        self.alpha = params['alpha']
         self.fc1 = nn.Linear(input_sz, n_hidden_1)
         self.fc2 = nn.Linear(n_hidden_1, n_hidden_1)
         self.fc3 = nn.Linear(n_hidden_1, n_hidden_2)
@@ -116,7 +118,8 @@ class SpectralNet(nn.Module):
 
         self.A = torch.rand(k, k).cuda()
         self.A.requires_grad = False
-        self.head = nn.Softmax(dim=1)
+        self.cluster_layer = Parameter(torch.Tensor(k, k))
+        torch.nn.init.xavier_normal_(self.cluster_layer.data)
 
     def forward(self, x, ortho_step=False):
         self.A.requires_grad = False
@@ -143,5 +146,9 @@ class SpectralNet(nn.Module):
             # need to multiply from the right, not from the left
             Y = torch.mm(Y_tilde, self.A)
 
-            P = self.head(self.fc5(Y))
-            return Y, P
+            q = 1.0 / (1.0 + torch.sum(
+            torch.pow(Y.unsqueeze(1) - self.cluster_layer, 2), 2) / self.alpha)
+            q = q.pow((self.alpha + 1.0) / 2.0)
+            q = (q.t() / torch.sum(q, 1)).t()
+            
+            return Y,q
