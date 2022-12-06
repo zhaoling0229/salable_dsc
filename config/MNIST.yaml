@@ -21,6 +21,7 @@ spec_model:
   lr: 0.0007
   batch_size: 400
   lambda: 100
+  alpha: 1
 
 dataset:
   name: "MNIST"

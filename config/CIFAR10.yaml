@@ -22,6 +22,7 @@ spec_model:
   lr: 0.00005
   batch_size: 1000
   lambda: 100
+  alpha: 1
 
 dataset:
   name: "CIFAR10"

@@ -146,8 +146,7 @@ class SpectralNet(nn.Module):
             # need to multiply from the right, not from the left
             Y = torch.mm(Y_tilde, self.A)
 
-            q = 1.0 / (1.0 + torch.sum(
-            torch.pow(Y.unsqueeze(1) - self.cluster_layer, 2), 2) / self.alpha)
+            q = 1.0 / (1.0 + torch.sum(torch.pow(Y.unsqueeze(1) - self.cluster_layer, 2), 2) / self.alpha)
             q = q.pow((self.alpha + 1.0) / 2.0)
             q = (q.t() / torch.sum(q, 1)).t()
             
