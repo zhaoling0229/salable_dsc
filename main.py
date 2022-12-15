@@ -22,7 +22,7 @@ def evaluate(model,data_loader,device,full = True):
         for batch,label in data_loader:
             if full:
                 batch = p_normalize(batch).to(device)
-            _,outputs = model(batch)
+            outputs = model(batch,ortho_step=False, mode = 'inference')
             _,pred = torch.max(outputs, 1)
             p = np.append(p,pred.cpu().detach().numpy())
             gt = np.append(gt,label.cpu().detach().numpy())
@@ -183,12 +183,14 @@ def train(config):
 
     model = SpectralNet(params).to(device)
     # deepcluster = Kmeans(num_cluster)
-
+    feature,_ = model(data)
+    _,cluster_centers = kmeans(X=feature, num_clusters=num_cluster, distance='euclidean', device=torch.device(device))
+    model.cluster_layer.data = cluster_centers
     # train params
     lr = params['lr']
-    optimizer = optim.SGD(model.parameters(), lr=lr)
+    optimizer = optim.Adam(model.parameters(), lr=lr)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer,T_max=100,eta_min=0.0)
-    criterion = nn.KLDivLoss(reduction = 'batchmean')
+    # criterion = nn.KLDivLoss(reduction = 'batchmean')
     lmda = params['lambda']
     spec_batch_size = params['batch_size']
     
@@ -205,7 +207,7 @@ def train(config):
 
     # loss log csv file
     csv_file = csv_path+"/spectralnet_" + str(datetime.datetime.now())+".csv"
-    headers = ['epoch','loss','loss_sn','loss_ce']
+    headers = ['epoch','loss','loss_sn']#,'loss_ce']
     with open(csv_file, 'w+', encoding='utf-8') as f:
         f.write(','.join(map(str, headers)))
 
@@ -269,25 +271,30 @@ def train(config):
             Y_dists = (torch.cdist(Y, Y)) ** 2
 
             loss_sn = (W * Y_dists).mean() * x.shape[0]
-            loss_dec = criterion(q.log(),p)
-            loss = loss_sn + lmda * loss_dec
+            # loss_dec = criterion(q.log(),p)
+            loss = loss_sn # + lmda * loss_dec
 
             loss.backward()
             optimizer.step()
 
             loss_sn_item += loss_sn.item()
-            loss_dec_item += loss_dec.item()
+            # loss_dec_item += loss_dec.item()
             loss_item += loss.item()
         
         pbar.set_postfix(loss="{:3.4f}".format(loss_item / n_batch),
-                loss_sn="{:3.4f}".format(loss_sn_item / n_batch),
-                loss_ce="{:3.4f}".format(loss_dec_item / n_batch))
+                loss_sn="{:3.4f}".format(loss_sn_item / n_batch),)
+                # loss_ce="{:3.4f}".format(loss_dec_item / n_batch))
 
-        line = [str(epoch),'%.4f'%(loss_item / n_batch),'%.4f'%(loss_sn_item / n_batch),'%.4f'%(loss_dec_item / n_batch)]
+        line = [str(epoch),'%.4f'%(loss_item / n_batch),'%.4f'%(loss_sn_item / n_batch)]#,'%.4f'%(loss_dec_item / n_batch)]
         with open(csv_file, 'a', encoding='utf-8') as f:
             f.write('\n'+','.join(map(str, line)))
 
         scheduler.step()
+
+        if (epoch + 1) % eval_epoch == 0 or (epoch + 1) % eval_epoch == 0:
+            feature,_ = model(data)
+            _,cluster_centers = kmeans(X=feature, num_clusters=num_cluster, distance='euclidean', device=torch.device(device))
+            model.cluster_layer.data = cluster_centers
 
         if (epoch + 1) % spec_save_epoch == 0:
             torch.save(model.state_dict(),model_path + '/spec_'+name+'_'+str(epoch)+'_'+str(data_num)+'.pt')
@@ -302,9 +309,9 @@ def train(config):
             full_data_loader = DataLoader(MyDataset(full_data,full_labels), batch_size=spec_batch_size, shuffle=False)
             print("Evaluating on full data...")
             acc,nmi,pur,ari = evaluate(model,full_data_loader,device)
-            #log = "full data: acc:"+str(acc)+"nmi:"+str(nmi)+"pur:"+str(pur)+"ari:"+str(ari)
             log = "full dataset in epoch: %d, acc: %.5f, nmi: %.5f, pur: %.5f, ari: %.5f"%(epoch,acc,nmi,pur,ari)
             write_log(log,path)
+        
         
     print("finish training spectralnet!")
 

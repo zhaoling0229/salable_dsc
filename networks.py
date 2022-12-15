@@ -121,7 +121,7 @@ class SpectralNet(nn.Module):
         self.cluster_layer = Parameter(torch.Tensor(k, k))
         torch.nn.init.xavier_normal_(self.cluster_layer.data)
 
-    def forward(self, x, ortho_step=False):
+    def forward(self, x, ortho_step=False, mode = 'train'):
         self.A.requires_grad = False
         if ortho_step:
             with torch.no_grad():
@@ -146,8 +146,11 @@ class SpectralNet(nn.Module):
             # need to multiply from the right, not from the left
             Y = torch.mm(Y_tilde, self.A)
 
-            q = 1.0 / (1.0 + torch.sum(torch.pow(Y.unsqueeze(1) - self.cluster_layer, 2), 2) / self.alpha)
-            q = q.pow((self.alpha + 1.0) / 2.0)
-            q = (q.t() / torch.sum(q, 1)).t()
-            
-            return Y,q
+            if mode == 'inference':
+                q = 1.0 / (1.0 + torch.sum(torch.pow(Y.unsqueeze(1) - self.cluster_layer, 2), 2) / self.alpha)
+                q = q.pow((self.alpha + 1.0) / 2.0)
+                q = (q.t() / torch.sum(q, 1)).t()
+
+                return q
+
+            return Y
