@@ -9,10 +9,8 @@ import numpy as np
 import pickle
 import yaml
 import datetime
-from kmeans_pytorch import kmeans
 from utils import *
 from networks import *
-# from label_generate import *
 import argparse
 
 def evaluate(model,data_loader,device,full = True):
@@ -44,7 +42,7 @@ def target_distribution(q):
     weight = q**2 / q.sum(0)
     return (weight.t() / weight.sum(1)).t()
 
-def train_se(senet, train_loader, block,save_path, name,params):
+def train_se(senet, train_loader, block,save_path, name,params,device):
     """
         训练自表达网络
         使用senet的代码块
@@ -78,8 +76,8 @@ def train_se(senet, train_loader, block,save_path, name,params):
             q_batch = senet.query_embedding(batch)
             k_batch = senet.key_embedding(batch)
             # 损失计算
-            rec_batch = torch.zeros_like(batch)
-            reg = torch.zeros([1]).cuda()
+            rec_batch = torch.zeros_like(batch).to(device)
+            reg = torch.zeros([1]).to(device)
 
             k_block = senet.key_embedding(block)
             c = senet.get_coeff(q_batch, k_block)
@@ -147,11 +145,6 @@ def train(config):
         full_data = np.concatenate([train_samples, test_samples], axis=0)
         full_labels = np.concatenate([train_labels, test_labels], axis=0)
 
-    # elif name in ["REUTERS"]:
-    #     data = np.load(data_path+'/'+'reutersidf10k.npy',allow_pickle=True).item()
-    #     full_data = data['data']
-    #     full_labels = data['label']
-
     else:
         raise Exception("The dataset are currently not supported.")    
     device = config['params']['device']
@@ -173,13 +166,14 @@ def train(config):
     else:
         save_path = "se_model/"+name
         params = config["se_model"]
-        senet = train_se(senet, train_loader, data,save_path,name,params)
+        senet = train_se(senet, train_loader, data,save_path,name,params,device)
     
     # train spectralnet
     params = config['spec_model']
     params['n_hidden_1'] = params['hid_dims'][0]
     params['n_hidden_2'] = params['hid_dims'][1]
-    params ['num_cluster'] = num_cluster
+    params['num_cluster'] = num_cluster
+    params['device'] = device
 
     model = SpectralNet(params).to(device)
     # deepcluster = Kmeans(num_cluster)
@@ -261,8 +255,8 @@ def train(config):
                 c = senet(x,x)
                 dist = torch.sort(torch.cdist(c,c),dim=1)
                 indices = dist.indices[:,0:3]
-                w = torch.zeros(10,10)
-                for i in range(10):
+                w = torch.zeros(x.shape[0],x.shape[0])
+                for i in range(x.shape[0]):
                     w[i,indices[i]] = 1
                 W = w + w.T
             

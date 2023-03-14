@@ -88,10 +88,10 @@ class SENet(nn.Module):
         return out
 
 
-def orthonorm(Q, eps=1e-7):
+def orthonorm(Q, eps=1e-7,device='cuda'):
     m = torch.tensor(Q.shape[0])  # batch size
     outer_prod = torch.mm(Q.T, Q)
-    outer_prod = outer_prod + eps * torch.eye(outer_prod.shape[0]).cuda()
+    outer_prod = outer_prod + eps * torch.eye(outer_prod.shape[0]).to(device)
 
     L = torch.linalg.cholesky(outer_prod)  # lower triangular
     L_inv = torch.linalg.inv(L)
@@ -102,20 +102,20 @@ class SpectralNet(nn.Module):
     def __init__(self, params):
         super(SpectralNet, self).__init__()
         self.params = params
+        self.device=params['device']
 
         input_sz = params['input_dims']
         n_hidden_1 = params['n_hidden_1']
         n_hidden_2 = params['n_hidden_2']
         k = params['num_cluster']
 
-        self.alpha = params['alpha']
         self.fc1 = nn.Linear(input_sz, n_hidden_1)
         self.fc2 = nn.Linear(n_hidden_1, n_hidden_1)
         self.fc3 = nn.Linear(n_hidden_1, n_hidden_2)
         self.fc4 = nn.Linear(n_hidden_2, k)
         self.fc5 = nn.Linear(k, k)
 
-        self.A = torch.rand(k, k).cuda()
+        self.A = torch.rand(k, k).to(self.device)
         self.A.requires_grad = False
         self.head = nn.Softmax(dim = 1)
 
@@ -129,7 +129,7 @@ class SpectralNet(nn.Module):
                 Y_tilde = torch.tanh(self.fc4(x))
                 self.A.requires_grad = False
 
-                self.A = orthonorm(Y_tilde, eps=self.params['epsilon'])
+                self.A = orthonorm(Y_tilde, eps=self.params['epsilon'],device = self.device)
 
                 # for debugging
                 Y = torch.mm(Y_tilde, self.A)

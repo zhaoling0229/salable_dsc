@@ -2,7 +2,7 @@ se_model:
   input_dims: 128
   hid_dims: [1024,1024]
   output_dims: 1024
-  epochs: 5000
+  epochs: 2500
   save_epoch: 500
   eval_epoch: 10000
   lr: 0.001
@@ -13,22 +13,22 @@ se_model:
 spec_model:
   input_dims: 128
   hid_dims: [1024,512]
-  output_dims: 512
+  output_dims: 128
   epsilon: 0.0001
   epochs: 1600
   save_epoch: 200
   eval_epoch: 100
   lr: 0.00005
-  batch_size: 1000
+  batch_size: 500
   lambda: 100
 
 dataset:
-  name: "CIFAR10"
-  path: "/root/dataset/CIFAR10-MCR2"
-  num: 10000
-  num_cluster: 10
+  name: "caltech101"
+  path: "/scalable_dsc/dataset/caltech101"
+  num: 2000
+  num_cluster: 102
 
 params: 
   device: 'cuda'
-  se_pretrained: True
-  se_model_path: 'se_model/CIFAR10/senet/se_CIFAR10_4999.pt'
+  se_pretrained: False
+  se_model_path: 'se_model/caltech101/caltech101/se_caltech101_249948.pt'
