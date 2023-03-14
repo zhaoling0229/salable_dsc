@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.init as init
 import torch.nn.functional as F
-from torch.nn.parameter import Parameter
 import numpy as np
 
 
@@ -118,8 +117,7 @@ class SpectralNet(nn.Module):
 
         self.A = torch.rand(k, k).cuda()
         self.A.requires_grad = False
-        self.cluster_layer = Parameter(torch.Tensor(k, k))
-        torch.nn.init.xavier_normal_(self.cluster_layer.data)
+        self.head = nn.Softmax(dim = 1)
 
     def forward(self, x, ortho_step=False):
         self.A.requires_grad = False
@@ -145,10 +143,6 @@ class SpectralNet(nn.Module):
             Y_tilde = torch.tanh(self.fc4(x))
             # need to multiply from the right, not from the left
             Y = torch.mm(Y_tilde, self.A)
-
-            q = 1.0 / (1.0 + torch.sum(
-            torch.pow(Y.unsqueeze(1) - self.cluster_layer, 2), 2) / self.alpha)
-            q = q.pow((self.alpha + 1.0) / 2.0)
-            q = (q.t() / torch.sum(q, 1)).t()
             
-            return Y,q
+            P = self.head(self.fc5(Y))
+            return Y,P
